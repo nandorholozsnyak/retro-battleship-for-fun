@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BATTLESHIP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="scanline"></div>
+  <div id="crt">
+    <header>
+      <pre id="title-art">
+ ____    _  _____ _____ _     _____ ____  _   _ ___ ____
+| __ )  / \|_   _|_   _| |   | ____/ ___|| | | |_ _|  _ \
+|  _ \ / _ \ | |   | | | |   |  _| \___ \| |_| || || |_) |
+| |_) / ___ \| |   | | | |___| |___ ___) |  _  || ||  __/
+|____/_/   \_\_|   |_| |_____|_____|____/|_| |_|___|_|
+      </pre>
+      <div id="status-bar">[ SYSTEM ONLINE ] [ AWAITING ORDERS ]</div>
+    </header>
+
+    <!-- LOBBY SCREEN -->
+    <div id="screen-lobby" class="screen active">
+      <div class="panel">
+        <h2>&gt; COMMAND CENTER</h2>
+        <div class="lobby-options">
+          <div class="board-size-row">
+            <label for="select-board-size">&gt; THEATER OF WAR:</label>
+            <select id="select-board-size" class="select-crt">
+              <option value="10">10 x 10 (Classic)</option>
+              <option value="15">15 x 15 (Extended)</option>
+              <option value="20">20 x 20 (Grand)</option>
+              <option value="30">30 x 30 (Epic)</option>
+            </select>
+          </div>
+          <button id="btn-create" class="btn">&gt; CREATE NEW GAME</button>
+          <div class="divider">- - - OR - - -</div>
+          <div class="join-row">
+            <label for="input-code">&gt; ENTER CODE:</label>
+            <input type="text" id="input-code" maxlength="4" placeholder="____" autocomplete="off">
+            <button id="btn-join" class="btn">&gt; JOIN</button>
+          </div>
+        </div>
+        <div id="lobby-msg" class="msg"></div>
+      </div>
+    </div>
+
+    <!-- WAITING SCREEN -->
+    <div id="screen-waiting" class="screen">
+      <div class="panel">
+        <h2>&gt; WAITING FOR OPPONENT</h2>
+        <p>SHARE THIS CODE WITH YOUR OPPONENT:</p>
+        <div id="game-code-display" class="code-display">----</div>
+        <div class="blink">STANDING BY...</div>
+      </div>
+    </div>
+
+    <!-- PLACEMENT SCREEN -->
+    <div id="screen-placing" class="screen">
+      <div class="panel">
+        <h2>&gt; DEPLOY YOUR FLEET</h2>
+        <div class="placement-layout">
+          <div class="placement-grid-area">
+            <div class="grid-label">YOUR WATERS</div>
+            <div class="grid-header">
+              <div class="corner"></div>
+              <div class="col-labels" id="place-col-labels"></div>
+            </div>
+            <div class="grid-body">
+              <div class="row-labels" id="place-row-labels"></div>
+              <div class="grid" id="placement-grid"></div>
+            </div>
+          </div>
+          <div class="placement-controls">
+            <div id="ship-list">
+              <!-- Dynamically generated -->
+            </div>
+            <div class="placement-buttons">
+              <button id="btn-rotate" class="btn btn-small">&gt; ROTATE [R]</button>
+              <button id="btn-clear" class="btn btn-small">&gt; CLEAR ALL</button>
+            </div>
+            <div class="placement-info">
+              <p>TAP GRID TO PLACE SHIP</p>
+              <p>TAP PLACED SHIP TO REMOVE</p>
+            </div>
+            <button id="btn-ready" class="btn" disabled>&gt; ALL HANDS READY</button>
+            <div id="placing-msg" class="msg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BATTLE SCREEN -->
+    <div id="screen-battle" class="screen">
+      <div class="panel">
+        <div id="turn-indicator" class="turn-indicator">AWAITING ORDERS...</div>
+        <div id="points-bar" class="points-bar">
+          <span>PTS: <span id="my-points">0</span></span>
+          <span>STREAK: <span id="my-streak">0</span></span>
+          <span>ENEMY PTS: <span id="enemy-points">0</span></span>
+        </div>
+        <div id="item-shop" class="item-shop">
+          <button id="btn-sonar" class="btn btn-item" data-cost="4" disabled>&gt; SONAR (4)</button>
+          <button id="btn-carpet" class="btn btn-item" data-cost="6" disabled>&gt; CARPET BOMB (6)</button>
+          <button id="btn-repair" class="btn btn-item" data-cost="8" disabled>&gt; REPAIR (8)</button>
+          <button id="btn-cancel-item" class="btn btn-item btn-cancel" style="display:none">&gt; CANCEL [ESC]</button>
+        </div>
+        <div class="battle-toggle">
+          <button id="btn-show-enemy" class="btn btn-toggle active">&gt; ENEMY RADAR</button>
+          <button id="btn-show-own" class="btn btn-toggle">&gt; YOUR SONAR</button>
+          <button id="btn-carpet-rotate" class="btn btn-toggle" style="display:none">&gt; ROTATE [R]</button>
+        </div>
+        <div class="battle-layout">
+          <div class="battle-grid-area" id="enemy-grid-area">
+            <div class="grid-label">ENEMY WATERS &mdash; RADAR</div>
+            <div class="grid-header">
+              <div class="corner"></div>
+              <div class="col-labels col-labels-enemy"></div>
+            </div>
+            <div class="grid-body">
+              <div class="row-labels row-labels-enemy"></div>
+              <div class="grid" id="enemy-grid"></div>
+            </div>
+          </div>
+          <div class="battle-grid-area mobile-hidden" id="own-grid-area">
+            <div class="grid-label">YOUR WATERS &mdash; SONAR</div>
+            <div class="grid-header">
+              <div class="corner"></div>
+              <div class="col-labels col-labels-own"></div>
+            </div>
+            <div class="grid-body">
+              <div class="row-labels row-labels-own"></div>
+              <div class="grid" id="own-grid"></div>
+            </div>
+          </div>
+        </div>
+        <div id="battle-log" class="battle-log"></div>
+      </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="screen-gameover" class="screen">
+      <div class="panel">
+        <h2 id="gameover-title">&gt; GAME OVER</h2>
+        <pre id="gameover-art"></pre>
+        <p id="gameover-msg"></p>
+        <p id="gameover-score" class="gameover-score"></p>
+        <button id="btn-newgame" class="btn">&gt; NEW GAME</button>
+      </div>
+    </div>
+
+    <footer>
+      <span>BATTLESHIP v2.0</span>
+      <span id="connection-status">DISCONNECTED</span>
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
