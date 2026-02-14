@@ -14,56 +14,53 @@ const games = new Map();
 // ─── Fleet Configurations ────────────────────────────────────────────
 const FLEET_CONFIGS = {
   10: [
-    { name: 'Carrier', size: 5 },
-    { name: 'Battleship', size: 4 },
-    { name: 'Cruiser', size: 3 },
-    { name: 'Submarine', size: 3 },
-    { name: 'Destroyer', size: 2 },
+    { name: 'Carrier', w: 5, h: 1 },
+    { name: 'Battleship', w: 4, h: 1 },
+    { name: 'Cruiser', w: 3, h: 1 },
+    { name: 'Submarine', w: 3, h: 1 },
+    { name: 'Destroyer', w: 2, h: 1 },
   ],
   15: [
-    { name: 'Dreadnought', size: 6 },
-    { name: 'Carrier A', size: 5 },
-    { name: 'Carrier B', size: 5 },
-    { name: 'Battleship A', size: 4 },
-    { name: 'Battleship B', size: 4 },
-    { name: 'Cruiser A', size: 3 },
-    { name: 'Cruiser B', size: 3 },
-    { name: 'Destroyer A', size: 2 },
-    { name: 'Destroyer B', size: 2 },
+    { name: 'Dreadnought', w: 6, h: 1 },
+    { name: 'Carrier', w: 5, h: 1 },
+    { name: 'Battleship A', w: 4, h: 1 },
+    { name: 'Battleship B', w: 4, h: 1 },
+    { name: 'Cruiser', w: 3, h: 1 },
+    { name: 'Destroyer A', w: 2, h: 1 },
+    { name: 'Destroyer B', w: 2, h: 1 },
+    { name: 'Fortress', w: 4, h: 2 },
   ],
   20: [
-    { name: 'Leviathan', size: 7 },
-    { name: 'Dreadnought', size: 6 },
-    { name: 'Carrier A', size: 5 },
-    { name: 'Carrier B', size: 5 },
-    { name: 'Battleship A', size: 4 },
-    { name: 'Battleship B', size: 4 },
-    { name: 'Battleship C', size: 4 },
-    { name: 'Cruiser A', size: 3 },
-    { name: 'Cruiser B', size: 3 },
-    { name: 'Cruiser C', size: 3 },
-    { name: 'Destroyer A', size: 2 },
-    { name: 'Destroyer B', size: 2 },
+    { name: 'Leviathan', w: 7, h: 1 },
+    { name: 'Carrier A', w: 5, h: 1 },
+    { name: 'Carrier B', w: 5, h: 1 },
+    { name: 'Cruiser A', w: 3, h: 1 },
+    { name: 'Cruiser B', w: 3, h: 1 },
+    { name: 'Cruiser C', w: 3, h: 1 },
+    { name: 'Destroyer A', w: 2, h: 1 },
+    { name: 'Destroyer B', w: 2, h: 1 },
+    { name: 'Destroyer C', w: 2, h: 1 },
+    { name: 'Fortress A', w: 4, h: 2 },
+    { name: 'Fortress B', w: 4, h: 2 },
   ],
   30: [
-    { name: 'Titan', size: 8 },
-    { name: 'Leviathan A', size: 7 },
-    { name: 'Leviathan B', size: 7 },
-    { name: 'Dreadnought A', size: 6 },
-    { name: 'Dreadnought B', size: 6 },
-    { name: 'Dreadnought C', size: 6 },
-    { name: 'Carrier A', size: 5 },
-    { name: 'Carrier B', size: 5 },
-    { name: 'Carrier C', size: 5 },
-    { name: 'Battleship A', size: 4 },
-    { name: 'Battleship B', size: 4 },
-    { name: 'Battleship C', size: 4 },
-    { name: 'Cruiser A', size: 3 },
-    { name: 'Cruiser B', size: 3 },
-    { name: 'Cruiser C', size: 3 },
-    { name: 'Cruiser D', size: 3 },
-    { name: 'Destroyer A', size: 2 },
-    { name: 'Destroyer B', size: 2 },
+    { name: 'Titan', w: 8, h: 1 },
+    { name: 'Leviathan A', w: 7, h: 1 },
+    { name: 'Leviathan B', w: 7, h: 1 },
+    { name: 'Dreadnought', w: 6, h: 1 },
+    { name: 'Carrier A', w: 5, h: 1 },
+    { name: 'Carrier B', w: 5, h: 1 },
+    { name: 'Battleship', w: 4, h: 1 },
+    { name: 'Cruiser A', w: 3, h: 1 },
+    { name: 'Cruiser B', w: 3, h: 1 },
+    { name: 'Cruiser C', w: 3, h: 1 },
+    { name: 'Destroyer A', w: 2, h: 1 },
+    { name: 'Destroyer B', w: 2, h: 1 },
+    { name: 'Destroyer C', w: 2, h: 1 },
+    { name: 'Destroyer D', w: 2, h: 1 },
+    { name: 'Fortress A', w: 4, h: 2 },
+    { name: 'Fortress B', w: 4, h: 2 },
+    { name: 'Fortress C', w: 4, h: 2 },
   ],
 };
 
@@ -72,6 +69,8 @@ const ITEMS = {
   carpet_bomb: { cost: 6 },
   repair: { cost: 8 },
 };
+
+const SONAR_SIZES = { 10: 3, 15: 4, 20: 5, 30: 6 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 function generateCode() {
@@ -97,44 +96,77 @@ function generateColLabels(size) {
   return labels;
 }
 
-function validateShips(board, fleet, size) {
+// Flood-fill to find all connected ship components on a board
+function findShipComponents(board, size) {
   const visited = Array.from({ length: size }, () => Array(size).fill(false));
-  const foundShips = [];
-  const shipCellSets = [];
-
+  const components = [];
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       if (board[r][c] === 1 && !visited[r][c]) {
-        let hLen = 0, tc = c;
-        while (tc < size && board[r][tc] === 1 && !visited[r][tc]) { hLen++; tc++; }
-
-        let vLen = 0, tr = r;
-        while (tr < size && board[tr][c] === 1 && !visited[tr][c]) { vLen++; tr++; }
-
-        if (hLen > 1 && vLen > 1) return false;
-
         const cells = [];
-        if (hLen >= vLen) {
-          for (let i = 0; i < hLen; i++) { visited[r][c + i] = true; cells.push([r, c + i]); }
-          foundShips.push(hLen);
-        } else {
-          for (let i = 0; i < vLen; i++) { visited[r + i][c] = true; cells.push([r + i, c]); }
-          foundShips.push(vLen);
+        const queue = [[r, c]];
+        visited[r][c] = true;
+        while (queue.length > 0) {
+          const [cr, cc] = queue.shift();
+          cells.push([cr, cc]);
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nr = cr + dr, nc = cc + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size && !visited[nr][nc] && board[nr][nc] === 1) {
+              visited[nr][nc] = true;
+              queue.push([nr, nc]);
+            }
+          }
         }
-        shipCellSets.push(cells);
+        let minR = size, maxR = 0, minC = size, maxC = 0;
+        for (const [cr, cc] of cells) {
+          minR = Math.min(minR, cr); maxR = Math.max(maxR, cr);
+          minC = Math.min(minC, cc); maxC = Math.max(maxC, cc);
+        }
+        components.push({ w: maxC - minC + 1, h: maxR - minR + 1, cells });
       }
     }
   }
+  return components;
+}
 
-  const expected = fleet.map(s => s.size).sort((a, b) => a - b).join(',');
-  const actual = foundShips.sort((a, b) => a - b).join(',');
-  if (expected !== actual) return false;
+// Match ship components to fleet definitions (supports rotation: w×h or h×w)
+function matchShipsToFleet(ships, fleet) {
+  const remaining = fleet.map((f, i) => ({ ...f, idx: i }));
+  const matched = [];
+  for (const ship of ships) {
+    const matchIdx = remaining.findIndex(f =>
+      (f.w === ship.w && f.h === ship.h) || (f.w === ship.h && f.h === ship.w)
+    );
+    if (matchIdx !== -1) {
+      matched.push({
+        name: remaining[matchIdx].name,
+        w: remaining[matchIdx].w,
+        h: remaining[matchIdx].h,
+        cells: ship.cells,
+      });
+      remaining.splice(matchIdx, 1);
+    }
+  }
+  return { matched, remaining };
+}
 
-  // Check no two ships are adjacent (including diagonals)
-  for (let i = 0; i < shipCellSets.length; i++) {
-    for (let j = i + 1; j < shipCellSets.length; j++) {
-      for (const [r1, c1] of shipCellSets[i]) {
-        for (const [r2, c2] of shipCellSets[j]) {
+function validateShips(board, fleet, size) {
+  const components = findShipComponents(board, size);
+
+  // Each component must be a filled rectangle
+  for (const comp of components) {
+    if (comp.cells.length !== comp.w * comp.h) return false;
+  }
+
+  // All fleet ships must be matched
+  const { remaining } = matchShipsToFleet(components, fleet);
+  if (remaining.length !== 0) return false;
+
+  // No two ships adjacent (including diagonals)
+  for (let i = 0; i < components.length; i++) {
+    for (let j = i + 1; j < components.length; j++) {
+      for (const [r1, c1] of components[i].cells) {
+        for (const [r2, c2] of components[j].cells) {
           if (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1) return false;
         }
       }
@@ -161,79 +193,18 @@ function totalShipCells(board, size) {
 }
 
 function extractShipPositions(board, fleet, size) {
-  const visited = Array.from({ length: size }, () => Array(size).fill(false));
-  const ships = [];
-
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (board[r][c] === 1 && !visited[r][c]) {
-        let hLen = 0, tc = c;
-        while (tc < size && board[r][tc] === 1 && !visited[r][tc]) { hLen++; tc++; }
-        let vLen = 0, tr = r;
-        while (tr < size && board[tr][c] === 1 && !visited[tr][c]) { vLen++; tr++; }
-
-        const cells = [];
-        if (hLen >= vLen) {
-          for (let i = 0; i < hLen; i++) { visited[r][c + i] = true; cells.push([r, c + i]); }
-        } else {
-          for (let i = 0; i < vLen; i++) { visited[r + i][c] = true; cells.push([r + i, c]); }
-        }
-        ships.push({ size: cells.length, cells });
-      }
-    }
-  }
-
-  // Match found ships to fleet names using consume-and-match
-  const remaining = fleet.map((f, i) => ({ ...f, idx: i }));
-  const result = [];
-  for (const ship of ships) {
-    const matchIdx = remaining.findIndex(f => f.size === ship.size);
-    if (matchIdx !== -1) {
-      result.push({ name: remaining[matchIdx].name, size: ship.size, cells: ship.cells });
-      remaining.splice(matchIdx, 1);
-    }
-  }
-  return result;
+  const components = findShipComponents(board, size);
+  const { matched } = matchShipsToFleet(components, fleet);
+  return matched;
 }
 
 function getSunkShips(board, shots, fleet, size) {
-  const visited = Array.from({ length: size }, () => Array(size).fill(false));
-  const allShips = [];
-
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (board[r][c] === 1 && !visited[r][c]) {
-        const cells = [];
-        let hLen = 0, tc = c;
-        while (tc < size && board[r][tc] === 1) { hLen++; tc++; }
-        let vLen = 0, tr = r;
-        while (tr < size && board[tr][c] === 1) { vLen++; tr++; }
-
-        if (hLen >= vLen) {
-          for (let i = 0; i < hLen; i++) { cells.push([r, c + i]); visited[r][c + i] = true; }
-        } else {
-          for (let i = 0; i < vLen; i++) { cells.push([r + i, c]); visited[r + i][c] = true; }
-        }
-
-        const allHit = cells.every(([cr, cc]) => shots[cr][cc] === 1);
-        if (allHit) {
-          allShips.push({ size: cells.length, cells });
-        }
-      }
-    }
-  }
-
-  // Match to fleet names using consume-and-match
-  const remaining = fleet.map((f, i) => ({ ...f, idx: i }));
-  const sunk = [];
-  for (const ship of allShips) {
-    const matchIdx = remaining.findIndex(f => f.size === ship.size);
-    if (matchIdx !== -1) {
-      sunk.push({ name: remaining[matchIdx].name, size: ship.size, cells: ship.cells });
-      remaining.splice(matchIdx, 1);
-    }
-  }
-  return sunk;
+  const components = findShipComponents(board, size);
+  const sunkComponents = components.filter(comp =>
+    comp.cells.every(([r, c]) => shots[r][c] === 1)
+  );
+  const { matched } = matchShipsToFleet(sunkComponents, fleet);
+  return matched;
 }
 
 function findShipAt(shipPositions, row, col) {
@@ -246,6 +217,30 @@ function isShipSunk(ship, shots) {
 
 function isShipDamaged(ship, shots) {
   return ship.cells.some(([r, c]) => shots[r][c] === 1);
+}
+
+function canPlaceShipOnBoard(board, newCells, excludeCells, size) {
+  // Check all new cells are in bounds and not occupied (ignoring excludeCells)
+  const excludeSet = new Set(excludeCells.map(([r, c]) => r + ',' + c));
+  for (const [r, c] of newCells) {
+    if (r < 0 || r >= size || c < 0 || c >= size) return false;
+    if (board[r][c] === 1 && !excludeSet.has(r + ',' + c)) return false;
+  }
+  // Check no adjacent cells belong to other ships (ignoring excludeCells and newCells themselves)
+  const newSet = new Set(newCells.map(([r, c]) => r + ',' + c));
+  for (const [r, c] of newCells) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        if (board[nr][nc] === 1 && !excludeSet.has(nr + ',' + nc) && !newSet.has(nr + ',' + nc)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 // ─── Socket Handlers ─────────────────────────────────────────────────
@@ -271,6 +266,7 @@ io.on('connection', (socket) => {
       shipPositions: [null, null],
       points: [0, 0],
       streaks: [0, 0],
+      repairedShips: [new Set(), new Set()],
     });
 
     socket.join(code);
@@ -376,7 +372,7 @@ io.on('connection', (socket) => {
       // Check if a ship was just sunk
       const ship = findShipAt(game.shipPositions[opponentIdx], row, col);
       if (ship && isShipSunk(ship, game.shots[idx])) {
-        pointsEarned += ship.size; // sinking bonus
+        pointsEarned += ship.w * ship.h; // sinking bonus
       }
     } else {
       game.streaks[idx] = 0;
@@ -437,20 +433,34 @@ io.on('connection', (socket) => {
     const opponentIdx = 1 - idx;
     game.points[idx] -= ITEMS.sonar.cost;
 
-    const results = [];
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
+    // Scan area scales with board size: 3x3, 4x4, 5x5, 6x6
+    const sonarSize = SONAR_SIZES[size] || 3;
+    const half = Math.floor((sonarSize - 1) / 2);
+    const cells = [];
+    let shipCount = 0;
+    let unfiredCount = 0;
+    for (let dr = -half; dr < -half + sonarSize; dr++) {
+      for (let dc = -half; dc < -half + sonarSize; dc++) {
         const nr = row + dr, nc = col + dc;
         if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-          const hasShip = game.boards[opponentIdx][nr][nc] === 1;
           const alreadyShot = game.shots[idx][nr][nc] === 1;
-          results.push({ row: nr, col: nc, hasShip, alreadyShot });
+          if (!alreadyShot) {
+            unfiredCount++;
+            if (game.boards[opponentIdx][nr][nc] === 1) {
+              shipCount++;
+            }
+          }
+          cells.push({ row: nr, col: nc, alreadyShot });
         }
       }
     }
+    const probability = unfiredCount > 0 ? Math.round((shipCount / unfiredCount) * 100) : 0;
 
     socket.emit('sonar_result', {
-      results,
+      cells,
+      probability,
+      shipCount,
+      unfiredCount,
       points: game.points[idx],
     });
   });
@@ -539,8 +549,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ─── Item: Repair ────────────────────────────────────────────────
-  socket.on('use_repair', ({ row, col }) => {
+  // ─── Item: Repair & Move ─────────────────────────────────────────
+  // Step 1: Select a damaged ship to repair
+  socket.on('use_repair_select', ({ row, col }) => {
     const code = socket.gameCode;
     const game = games.get(code);
     if (!game || game.phase !== 'battle') return;
@@ -553,7 +564,6 @@ io.on('connection', (socket) => {
     }
 
     const opponentIdx = 1 - idx;
-    // Find ship at this cell on OUR board (opponent's shots)
     const ship = findShipAt(game.shipPositions[idx], row, col);
     if (!ship) {
       socket.emit('error_msg', 'No ship at that location!');
@@ -567,26 +577,113 @@ io.on('connection', (socket) => {
       socket.emit('error_msg', 'That ship is not damaged!');
       return;
     }
+    // Check if already repaired
+    if (game.repairedShips[idx].has(ship.name)) {
+      socket.emit('error_msg', 'This ship has already been repaired!');
+      return;
+    }
 
+    // Send ship info back so client can enter placement mode
+    socket.emit('repair_select_ok', {
+      shipName: ship.name,
+      shipW: ship.w,
+      shipH: ship.h,
+      oldCells: ship.cells,
+    });
+  });
+
+  // Step 2: Confirm repair with new position
+  socket.on('use_repair_move', ({ shipName, newCells }) => {
+    const code = socket.gameCode;
+    const game = games.get(code);
+    if (!game || game.phase !== 'battle') return;
+
+    const idx = socket.playerIndex;
+    if (game.turn !== idx) return;
+    if (game.points[idx] < ITEMS.repair.cost) {
+      socket.emit('error_msg', 'Not enough points for Repair!');
+      return;
+    }
+
+    const opponentIdx = 1 - idx;
+    const size = game.boardSize;
+
+    // Find the ship by name
+    const shipIdx = game.shipPositions[idx].findIndex(s => s.name === shipName);
+    if (shipIdx === -1) {
+      socket.emit('error_msg', 'Ship not found!');
+      return;
+    }
+    const ship = game.shipPositions[idx][shipIdx];
+
+    // Re-validate: damaged, not sunk, not already repaired
+    if (isShipSunk(ship, game.shots[opponentIdx])) {
+      socket.emit('error_msg', 'Cannot repair a sunken ship!');
+      return;
+    }
+    if (!isShipDamaged(ship, game.shots[opponentIdx])) {
+      socket.emit('error_msg', 'That ship is not damaged!');
+      return;
+    }
+    if (game.repairedShips[idx].has(ship.name)) {
+      socket.emit('error_msg', 'This ship has already been repaired!');
+      return;
+    }
+
+    // Validate new cells
+    if (!newCells || newCells.length !== ship.w * ship.h) {
+      socket.emit('error_msg', 'Invalid repair position!');
+      return;
+    }
+
+    // Validate the new position on the board
+    if (!canPlaceShipOnBoard(game.boards[idx], newCells, ship.cells, size)) {
+      socket.emit('error_msg', 'Cannot place ship there!');
+      return;
+    }
+
+    // Execute the repair and move
     game.points[idx] -= ITEMS.repair.cost;
+    game.repairedShips[idx].add(ship.name);
 
-    // Clear opponent's hits on this ship
-    const repairedCells = [];
-    for (const [r, c] of ship.cells) {
+    const oldCells = ship.cells.slice();
+
+    // Remove old ship from board
+    for (const [r, c] of oldCells) {
+      game.boards[idx][r][c] = 0;
+    }
+
+    // Clear opponent's hits on old cells
+    const clearedHits = [];
+    for (const [r, c] of oldCells) {
       if (game.shots[opponentIdx][r][c] === 1) {
         game.shots[opponentIdx][r][c] = 0;
-        repairedCells.push([r, c]);
+        clearedHits.push([r, c]);
       }
     }
 
+    // Place ship at new position
+    for (const [r, c] of newCells) {
+      game.boards[idx][r][c] = 1;
+    }
+
+    // Update ship positions
+    ship.cells = newCells;
+
+    // Repair & Move ends the turn
+    game.turn = opponentIdx;
+
     socket.emit('repair_result', {
       shipName: ship.name,
-      cells: repairedCells,
+      oldCells,
+      newCells,
+      clearedHits,
       points: game.points[idx],
     });
 
     io.to(game.players[opponentIdx]).emit('opponent_repair', {
-      cells: repairedCells,
+      oldCells,
+      clearedHits,
       enemyPoints: game.points[idx],
     });
   });

@@ -4,17 +4,23 @@ const socket = io();
 let boardSize = 10;
 let COLS = ['A','B','C','D','E','F','G','H','I','J'];
 let SHIPS = [
-  { name: 'Carrier', size: 5 },
-  { name: 'Battleship', size: 4 },
-  { name: 'Cruiser', size: 3 },
-  { name: 'Submarine', size: 3 },
-  { name: 'Destroyer', size: 2 },
+  { name: 'Carrier', w: 5, h: 1 },
+  { name: 'Battleship', w: 4, h: 1 },
+  { name: 'Cruiser', w: 3, h: 1 },
+  { name: 'Submarine', w: 3, h: 1 },
+  { name: 'Destroyer', w: 2, h: 1 },
 ];
 
 function setGameConfig(config) {
-  boardSize = config.boardSize;
-  COLS = config.colLabels;
-  SHIPS = config.fleet;
+  boardSize = config.boardSize || 10;
+  COLS = config.colLabels || ['A','B','C','D','E','F','G','H','I','J'];
+  SHIPS = config.fleet || [
+    { name: 'Carrier', w: 5, h: 1 },
+    { name: 'Battleship', w: 4, h: 1 },
+    { name: 'Cruiser', w: 3, h: 1 },
+    { name: 'Submarine', w: 3, h: 1 },
+    { name: 'Destroyer', w: 2, h: 1 },
+  ];
 }
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -29,8 +35,15 @@ let shipCells = [];
 let myPoints = 0;
 let myStreak = 0;
 let opponentPoints = 0;
-let battleMode = 'normal'; // 'normal' | 'sonar' | 'carpet_bomb' | 'repair'
+let battleMode = 'normal'; // 'normal' | 'sonar' | 'carpet_bomb' | 'repair' | 'repair_placing'
 let carpetOrientation = 'H';
+
+// Repair & Move state
+let repairShipName = null;
+let repairShipW = 0;
+let repairShipH = 0;
+let repairOldCells = [];
+let repairOrientation = 'H';
 
 function resetBoard() {
   myBoard = Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
@@ -63,7 +76,7 @@ function setStatus(text) {
 function populateLabels(colContainer, rowContainer) {
   colContainer.innerHTML = '';
   rowContainer.innerHTML = '';
-  colContainer.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+  colContainer.style.gridTemplateColumns = `repeat(${boardSize}, minmax(0, 1fr))`;
   COLS.forEach(c => {
     const s = document.createElement('span');
     s.textContent = c;
@@ -78,8 +91,8 @@ function populateLabels(colContainer, rowContainer) {
 
 function createGrid(container, onClick, onHover, onLeave, onRightClick) {
   container.innerHTML = '';
-  container.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
-  container.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
+  container.style.gridTemplateColumns = `repeat(${boardSize}, minmax(0, 1fr))`;
+  container.style.gridTemplateRows = `repeat(${boardSize}, minmax(0, 1fr))`;
   for (let r = 0; r < boardSize; r++) {
     for (let c = 0; c < boardSize; c++) {
       const cell = document.createElement('div');
@@ -101,6 +114,13 @@ function getCell(gridEl, r, c) {
 
 function coordStr(r, c) {
   return `${COLS[c]}${r + 1}`;
+}
+
+function getSonarSize() {
+  if (boardSize <= 10) return 3;
+  if (boardSize <= 15) return 4;
+  if (boardSize <= 20) return 5;
+  return 6;
 }
 
 // ─── Sound effects (synthesized) ─────────────────────────────────────
@@ -229,6 +249,11 @@ function initPlacement() {
   selectedShip = 0;
   orientation = 'H';
 
+  // Reset UI state from previous games
+  $('#btn-ready').textContent = '> ALL HANDS READY';
+  $('#btn-ready').disabled = true;
+  $('#placing-msg').textContent = '';
+
   // Generate ship list dynamically
   const shipList = $('#ship-list');
   shipList.innerHTML = '';
@@ -236,8 +261,9 @@ function initPlacement() {
     const el = document.createElement('div');
     el.className = 'ship-item' + (i === 0 ? ' selected' : '');
     el.dataset.ship = i;
-    el.dataset.size = ship.size;
-    el.textContent = `> ${ship.name.toUpperCase()} (${ship.size})`;
+    el.dataset.size = ship.w * ship.h;
+    const dimStr = (ship.w === 1 || ship.h === 1) ? `${Math.max(ship.w, ship.h)}` : `${ship.w}x${ship.h}`;
+    el.textContent = `> ${ship.name.toUpperCase()} (${dimStr})`;
     el.addEventListener('click', () => {
       selectedShip = i;
       $$('.ship-item').forEach(s => s.classList.remove('selected'));
@@ -274,12 +300,14 @@ function onPlacementKey(e) {
   }
 }
 
-function getShipCells(r, c, size, orient) {
+function getShipCells(r, c, w, h, orient) {
   const cells = [];
-  for (let i = 0; i < size; i++) {
-    const cr = orient === 'V' ? r + i : r;
-    const cc = orient === 'H' ? c + i : c;
-    cells.push([cr, cc]);
+  const pw = orient === 'H' ? w : h; // placed width (columns)
+  const ph = orient === 'H' ? h : w; // placed height (rows)
+  for (let dr = 0; dr < ph; dr++) {
+    for (let dc = 0; dc < pw; dc++) {
+      cells.push([r + dr, c + dc]);
+    }
   }
   return cells;
 }
@@ -317,8 +345,8 @@ function canPlace(cells, excludeShip) {
 
 function onPlaceHover(r, c) {
   clearPreview();
-  const size = SHIPS[selectedShip].size;
-  const cells = getShipCells(r, c, size, orientation);
+  const ship = SHIPS[selectedShip];
+  const cells = getShipCells(r, c, ship.w, ship.h, orientation);
   const valid = canPlace(cells, placedShips[selectedShip] ? selectedShip : undefined);
 
   cells.forEach(([cr, cc]) => {
@@ -353,8 +381,8 @@ function onPlaceClick(r, c) {
     }
   }
 
-  const size = SHIPS[selectedShip].size;
-  const cells = getShipCells(r, c, size, orientation);
+  const ship = SHIPS[selectedShip];
+  const cells = getShipCells(r, c, ship.w, ship.h, orientation);
 
   if (!canPlace(cells, placedShips[selectedShip] ? selectedShip : undefined)) {
     cells.forEach(([cr, cc]) => {
@@ -439,19 +467,18 @@ $('#btn-ready').addEventListener('click', () => {
 });
 
 // ─── Battle grid toggle (mobile) ─────────────────────────────────────
-$('#btn-show-enemy').addEventListener('click', () => {
-  $('#enemy-grid-area').classList.remove('mobile-hidden');
-  $('#own-grid-area').classList.add('mobile-hidden');
-  $('#btn-show-enemy').classList.add('active');
-  $('#btn-show-own').classList.remove('active');
-});
+function showMobileTab(tab) {
+  $('#enemy-grid-area').classList.toggle('mobile-hidden', tab !== 'enemy');
+  $('#own-grid-area').classList.toggle('mobile-hidden', tab !== 'own');
+  $('#battle-log').classList.toggle('mobile-hidden', tab !== 'log');
+  $('#btn-show-enemy').classList.toggle('active', tab === 'enemy');
+  $('#btn-show-own').classList.toggle('active', tab === 'own');
+  $('#btn-show-log').classList.toggle('active', tab === 'log');
+}
 
-$('#btn-show-own').addEventListener('click', () => {
-  $('#own-grid-area').classList.remove('mobile-hidden');
-  $('#enemy-grid-area').classList.add('mobile-hidden');
-  $('#btn-show-own').classList.add('active');
-  $('#btn-show-enemy').classList.remove('active');
-});
+$('#btn-show-enemy').addEventListener('click', () => showMobileTab('enemy'));
+$('#btn-show-own').addEventListener('click', () => showMobileTab('own'));
+$('#btn-show-log').addEventListener('click', () => showMobileTab('log'));
 
 // ─── Points & Items ──────────────────────────────────────────────────
 function updatePointsDisplay() {
@@ -497,12 +524,12 @@ function setBattleMode(mode) {
     }
   } else if (mode === 'repair') {
     $('#btn-repair').classList.add('active-item');
-    // Switch to own grid on mobile for repair
+    if (window.innerWidth <= 800) showMobileTab('own');
+  } else if (mode === 'repair_placing') {
+    $('#btn-repair').classList.add('active-item');
     if (window.innerWidth <= 800) {
-      $('#own-grid-area').classList.remove('mobile-hidden');
-      $('#enemy-grid-area').classList.add('mobile-hidden');
-      $('#btn-show-own').classList.add('active');
-      $('#btn-show-enemy').classList.remove('active');
+      $('#btn-carpet-rotate').style.display = '';
+      showMobileTab('own');
     }
   }
 }
@@ -510,6 +537,9 @@ function setBattleMode(mode) {
 function clearItemPreview() {
   $$('#enemy-grid .cell').forEach(c => {
     c.classList.remove('preview-sonar', 'preview-carpet');
+  });
+  $$('#own-grid .cell').forEach(c => {
+    c.classList.remove('preview-repair', 'preview-repair-invalid');
   });
 }
 
@@ -534,7 +564,11 @@ $('#btn-cancel-item').addEventListener('click', () => {
 });
 
 $('#btn-carpet-rotate').addEventListener('click', () => {
-  carpetOrientation = carpetOrientation === 'H' ? 'V' : 'H';
+  if (battleMode === 'carpet_bomb') {
+    carpetOrientation = carpetOrientation === 'H' ? 'V' : 'H';
+  } else if (battleMode === 'repair_placing') {
+    repairOrientation = repairOrientation === 'H' ? 'V' : 'H';
+  }
 });
 
 // ─── Battle ──────────────────────────────────────────────────────────
@@ -559,7 +593,7 @@ function initBattle() {
   const ownCols = screens.battle.querySelector('.col-labels-own');
   const ownRows = screens.battle.querySelector('.row-labels-own');
   populateLabels(ownCols, ownRows);
-  createGrid($('#own-grid'), onOwnGridClick, null, null, null);
+  createGrid($('#own-grid'), onOwnGridClick, onOwnGridHover, onOwnGridLeave, null);
 
   // Show own ships
   for (let r = 0; r < boardSize; r++) {
@@ -571,6 +605,12 @@ function initBattle() {
   }
 
   $('#battle-log').innerHTML = '';
+  // On mobile, battle log starts hidden (it's in a tab)
+  if (window.innerWidth <= 800) {
+    $('#battle-log').classList.add('mobile-hidden');
+  } else {
+    $('#battle-log').classList.remove('mobile-hidden');
+  }
   updatePointsDisplay();
   setBattleMode('normal');
 }
@@ -579,8 +619,12 @@ function onBattleKey(e) {
   if (e.key === 'Escape') {
     setBattleMode('normal');
   }
-  if ((e.key === 'r' || e.key === 'R') && battleMode === 'carpet_bomb') {
-    carpetOrientation = carpetOrientation === 'H' ? 'V' : 'H';
+  if (e.key === 'r' || e.key === 'R') {
+    if (battleMode === 'carpet_bomb') {
+      carpetOrientation = carpetOrientation === 'H' ? 'V' : 'H';
+    } else if (battleMode === 'repair_placing') {
+      repairOrientation = repairOrientation === 'H' ? 'V' : 'H';
+    }
   }
 }
 
@@ -589,8 +633,10 @@ function onFireHover(r, c) {
   if (!isMyTurn) return;
 
   if (battleMode === 'sonar') {
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
+    const sonarSize = getSonarSize();
+    const half = Math.floor((sonarSize - 1) / 2);
+    for (let dr = -half; dr < -half + sonarSize; dr++) {
+      for (let dc = -half; dc < -half + sonarSize; dc++) {
         const nr = r + dr, nc = c + dc;
         if (nr >= 0 && nr < boardSize && nc >= 0 && nc < boardSize) {
           const cell = getCell($('#enemy-grid'), nr, nc);
@@ -642,10 +688,58 @@ function onFireClick(r, c) {
 
 function onOwnGridClick(r, c) {
   if (!isMyTurn) return;
-  if (battleMode !== 'repair') return;
 
-  socket.emit('use_repair', { row: r, col: c });
-  setBattleMode('normal');
+  if (battleMode === 'repair') {
+    // Step 1: Select a damaged ship
+    socket.emit('use_repair_select', { row: r, col: c });
+    return;
+  }
+
+  if (battleMode === 'repair_placing') {
+    // Step 2: Place the repaired ship at new location
+    const newCells = getShipCells(r, c, repairShipW, repairShipH, repairOrientation);
+    // Validate on client side first (bounds check)
+    const allInBounds = newCells.every(([cr, cc]) => cr >= 0 && cr < boardSize && cc >= 0 && cc < boardSize);
+    if (!allInBounds) return;
+
+    socket.emit('use_repair_move', {
+      shipName: repairShipName,
+      newCells,
+    });
+    return;
+  }
+}
+
+function onOwnGridHover(r, c) {
+  // Clear previous repair previews
+  $$('#own-grid .cell').forEach(cell => {
+    cell.classList.remove('preview-repair', 'preview-repair-invalid');
+  });
+
+  if (battleMode !== 'repair_placing') return;
+
+  const cells = getShipCells(r, c, repairShipW, repairShipH, repairOrientation);
+  const allInBounds = cells.every(([cr, cc]) => cr >= 0 && cr < boardSize && cc >= 0 && cc < boardSize);
+
+  // Simple client-side validation: in bounds and no overlap with other ships (except the ship being moved)
+  const repairOldSet = new Set(repairOldCells.map(([cr, cc]) => cr + ',' + cc));
+  const valid = allInBounds && cells.every(([cr, cc]) => {
+    if (myBoard[cr][cc] === 1 && !repairOldSet.has(cr + ',' + cc)) return false;
+    return true;
+  });
+
+  cells.forEach(([cr, cc]) => {
+    if (cr >= 0 && cr < boardSize && cc >= 0 && cc < boardSize) {
+      const cell = getCell($('#own-grid'), cr, cc);
+      cell.classList.add(valid ? 'preview-repair' : 'preview-repair-invalid');
+    }
+  });
+}
+
+function onOwnGridLeave() {
+  $$('#own-grid .cell').forEach(cell => {
+    cell.classList.remove('preview-repair', 'preview-repair-invalid');
+  });
 }
 
 function updateTurnIndicator() {
@@ -749,7 +843,7 @@ socket.on('fire_result', ({ row, col, hit, sunkShips, yourTurn, won, points, str
   const cell = getCell($('#enemy-grid'), row, col);
 
   // Clear sonar markers when fired upon
-  cell.classList.remove('sonar-detected', 'sonar-clear');
+  cell.classList.remove('sonar-clear', 'sonar-low', 'sonar-medium', 'sonar-hot');
 
   if (hit) {
     cell.classList.add('hit');
@@ -801,26 +895,26 @@ socket.on('incoming_fire', ({ row, col, hit, sunkShips, yourTurn, lost, enemyPoi
 });
 
 // ─── Sonar result ────────────────────────────────────────────────────
-socket.on('sonar_result', ({ results, points }) => {
+socket.on('sonar_result', ({ cells, probability, shipCount, unfiredCount, points }) => {
   playSonar();
   myPoints = points;
   updatePointsDisplay();
 
-  let detected = 0;
-  results.forEach(({ row, col, hasShip, alreadyShot }) => {
+  // Determine heat level class based on threat density
+  let heatClass;
+  if (probability === 0) heatClass = 'sonar-clear';
+  else if (probability <= 25) heatClass = 'sonar-low';
+  else if (probability <= 50) heatClass = 'sonar-medium';
+  else heatClass = 'sonar-hot';
+
+  cells.forEach(({ row, col, alreadyShot }) => {
     if (alreadyShot) return;
     const cell = getCell($('#enemy-grid'), row, col);
-    // Clear previous sonar markers
-    cell.classList.remove('sonar-detected', 'sonar-clear');
-    if (hasShip) {
-      cell.classList.add('sonar-detected');
-      detected++;
-    } else {
-      cell.classList.add('sonar-clear');
-    }
+    cell.classList.remove('sonar-clear', 'sonar-low', 'sonar-medium', 'sonar-hot');
+    cell.classList.add(heatClass);
   });
 
-  addLog(`SONAR PULSE: ${detected} CONTACT${detected !== 1 ? 'S' : ''} DETECTED (-4 pts)`, 'log-sonar');
+  addLog(`SONAR PING: ${probability}% THREAT DENSITY (${shipCount} in ${unfiredCount} cells, -4 pts)`, 'log-sonar');
 });
 
 // ─── Carpet bomb result ──────────────────────────────────────────────
@@ -828,7 +922,7 @@ socket.on('carpet_bomb_result', ({ results, sunkShips, points, streak, won }) =>
   let hitCount = 0;
   results.forEach(({ row, col, hit }) => {
     const cell = getCell($('#enemy-grid'), row, col);
-    cell.classList.remove('sonar-detected', 'sonar-clear');
+    cell.classList.remove('sonar-clear', 'sonar-low', 'sonar-medium', 'sonar-hot');
     if (hit) {
       cell.classList.add('hit');
       hitCount++;
@@ -885,32 +979,76 @@ socket.on('incoming_carpet_bomb', ({ results, sunkShips, enemyPoints: ep, lost }
   updatePointsDisplay();
 });
 
-// ─── Repair result ───────────────────────────────────────────────────
-socket.on('repair_result', ({ shipName, cells, points }) => {
+// ─── Repair & Move ──────────────────────────────────────────────────
+socket.on('repair_select_ok', ({ shipName, shipW, shipH, oldCells }) => {
+  repairShipName = shipName;
+  repairShipW = shipW;
+  repairShipH = shipH;
+  repairOldCells = oldCells;
+  repairOrientation = 'H';
+
+  // Highlight old ship cells on own grid
+  oldCells.forEach(([r, c]) => {
+    const cell = getCell($('#own-grid'), r, c);
+    cell.classList.add('repair-flash');
+  });
+
+  setBattleMode('repair_placing');
+  const dimStr = (shipW === 1 || shipH === 1) ? `${shipW * shipH}` : `${shipW}x${shipH}`;
+  addLog(`SELECT NEW POSITION FOR ${shipName.toUpperCase()} (${dimStr}). PRESS R TO ROTATE.`, 'log-repair');
+});
+
+socket.on('repair_result', ({ shipName, oldCells, newCells, clearedHits, points }) => {
   playRepair();
   myPoints = points;
+  setBattleMode('normal');
   updatePointsDisplay();
 
-  cells.forEach(([r, c]) => {
+  // Remove old ship visuals
+  oldCells.forEach(([r, c]) => {
     const cell = getCell($('#own-grid'), r, c);
-    cell.classList.remove('hit-own');
+    cell.classList.remove('ship-own', 'hit-own', 'repair-flash');
+  });
+
+  // Update myBoard: clear old cells, set new cells
+  oldCells.forEach(([r, c]) => { myBoard[r][c] = 0; });
+  newCells.forEach(([r, c]) => { myBoard[r][c] = 1; });
+
+  // Show new ship position with repair flash
+  newCells.forEach(([r, c]) => {
+    const cell = getCell($('#own-grid'), r, c);
     cell.classList.add('ship-own', 'repair-flash');
     setTimeout(() => cell.classList.remove('repair-flash'), 600);
   });
 
-  addLog(`${shipName.toUpperCase()} REPAIRED! (${cells.length} cells restored, -8 pts)`, 'log-repair');
+  addLog(`${shipName.toUpperCase()} REPAIRED & MOVED! (${clearedHits.length} hits cleared, -8 pts, TURN OVER)`, 'log-repair');
+
+  // Repair & Move ends the turn
+  isMyTurn = false;
+  updateTurnIndicator();
+
+  // Reset repair state
+  repairShipName = null;
+  repairShipW = 0;
+  repairShipH = 0;
+  repairOldCells = [];
 });
 
-socket.on('opponent_repair', ({ cells, enemyPoints: ep }) => {
+socket.on('opponent_repair', ({ oldCells, clearedHits, enemyPoints: ep }) => {
   opponentPoints = ep;
   updatePointsDisplay();
 
-  cells.forEach(([r, c]) => {
+  // Remove hit markers from old cells on enemy grid
+  clearedHits.forEach(([r, c]) => {
     const cell = getCell($('#enemy-grid'), r, c);
     cell.classList.remove('hit', 'sunk');
   });
 
-  addLog(`ENEMY REPAIRED A SHIP! (${cells.length} hits removed)`, 'log-repair');
+  addLog(`ENEMY REPAIRED & MOVED A SHIP! (${clearedHits.length} hits removed)`, 'log-repair');
+
+  // Repair & Move gives us the turn
+  isMyTurn = true;
+  updateTurnIndicator();
 });
 
 // ─── Turn update (from carpet bomb) ─────────────────────────────────
