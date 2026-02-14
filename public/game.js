@@ -1,5 +1,22 @@
 const socket = io();
 
+// ─── Theme Switching ────────────────────────────────────────────────
+function setTheme(theme) {
+  document.body.className = theme === 'retro' ? '' : `theme-${theme}`;
+  localStorage.setItem('battleship-theme', theme);
+  document.querySelectorAll('.btn-theme').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
+}
+
+// Load saved theme on page load
+const savedTheme = localStorage.getItem('battleship-theme') || 'retro';
+setTheme(savedTheme);
+
+document.querySelectorAll('.btn-theme').forEach(btn => {
+  btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+});
+
 // ─── Dynamic Config (set from server) ────────────────────────────────
 let boardSize = 10;
 let COLS = ['A','B','C','D','E','F','G','H','I','J'];

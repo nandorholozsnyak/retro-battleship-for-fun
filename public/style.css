@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&family=Cinzel:wght@400;700&family=Crimson+Text&display=swap');
 
 :root {
   --green: #33ff33;
@@ -15,7 +15,64 @@
   --panel-bg: #0d1a0d;
   --cell-bg: #0a1a0a;
   --cell-border: #1a4d1a;
+  --font-main: 'VT323', monospace;
+  --font-heading: 'VT323', monospace;
+  --border-radius: 0px;
+  --panel-shadow: 0 0 15px rgba(51, 255, 51, 0.05), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  --btn-hover-bg: var(--green-dark);
 }
+
+/* ─── Modern Theme ─────────────────────────────────────────────────── */
+body.theme-modern {
+  --green: #4a9eff;
+  --green-dim: #2d6cb3;
+  --green-dark: #1a2a4a;
+  --green-glow: #4a9eff44;
+  --amber: #ff9933;
+  --red: #ff4455;
+  --red-dim: #662233;
+  --blue: #66aaff;
+  --cyan: #33bbee;
+  --cyan-dim: #1a5577;
+  --bg: #1a1e2e;
+  --panel-bg: #222840;
+  --cell-bg: #141824;
+  --cell-border: #2a3050;
+  --font-main: system-ui, -apple-system, sans-serif;
+  --font-heading: system-ui, -apple-system, sans-serif;
+  --border-radius: 8px;
+  --panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --btn-hover-bg: #2a3555;
+}
+
+body.theme-modern #scanline,
+body.theme-modern #crt::before { display: none; }
+
+/* ─── Warships Theme ───────────────────────────────────────────────── */
+body.theme-warships {
+  --green: #d4a944;
+  --green-dim: #a07830;
+  --green-dark: #3d2e15;
+  --green-glow: #d4a94444;
+  --amber: #e8b84d;
+  --red: #cc3333;
+  --red-dim: #5c1a1a;
+  --blue: #4477aa;
+  --cyan: #7799aa;
+  --cyan-dim: #3d5566;
+  --bg: #0a0e1a;
+  --panel-bg: #0f1428;
+  --cell-bg: #0d1525;
+  --cell-border: #1a2540;
+  --font-main: 'Crimson Text', serif;
+  --font-heading: 'Cinzel', serif;
+  --border-radius: 2px;
+  --panel-shadow: 0 2px 16px rgba(0, 0, 0, 0.6);
+  --btn-hover-bg: #1a2030;
+}
+
+body.theme-warships #scanline,
+body.theme-warships #crt::before { display: none; }
 
 * {
   margin: 0;
@@ -26,7 +83,7 @@
 body {
   background: var(--bg);
   color: var(--green);
-  font-family: 'VT323', monospace;
+  font-family: var(--font-main);
   font-size: 18px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -108,7 +165,8 @@ header {
   border: 1px solid var(--green-dim);
   padding: 20px;
   background: var(--panel-bg);
-  box-shadow: 0 0 15px rgba(51, 255, 51, 0.05), inset 0 0 30px rgba(0, 0, 0, 0.5);
+  border-radius: var(--border-radius);
+  box-shadow: var(--panel-shadow);
   flex: 1;
   min-height: 0;
   display: flex;
@@ -116,7 +174,7 @@ header {
 }
 
 h2 {
-  font-family: 'VT323', monospace;
+  font-family: var(--font-heading);
   font-size: 24px;
   font-weight: normal;
   margin-bottom: 16px;
@@ -128,8 +186,9 @@ h2 {
   background: transparent;
   color: var(--green);
   border: 1px solid var(--green-dim);
+  border-radius: var(--border-radius);
   padding: 10px 24px;
-  font-family: 'VT323', monospace;
+  font-family: var(--font-main);
   font-size: 20px;
   cursor: pointer;
   text-transform: uppercase;
@@ -138,7 +197,7 @@ h2 {
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--green-dark);
+  background: var(--btn-hover-bg);
   border-color: var(--green);
   text-shadow: 0 0 8px var(--green-glow);
   box-shadow: 0 0 10px rgba(51, 255, 51, 0.2);
@@ -154,8 +213,9 @@ h2 {
 .select-crt {
   background: var(--cell-bg);
   border: 1px solid var(--green-dim);
+  border-radius: var(--border-radius);
   color: var(--green);
-  font-family: 'VT323', monospace;
+  font-family: var(--font-main);
   font-size: 20px;
   padding: 8px 12px;
   cursor: pointer;
@@ -209,8 +269,9 @@ h2 {
 input[type="text"] {
   background: var(--cell-bg);
   border: 1px solid var(--green-dim);
+  border-radius: var(--border-radius);
   color: var(--green);
-  font-family: 'VT323', monospace;
+  font-family: var(--font-main);
   font-size: 28px;
   padding: 8px 12px;
   width: 100px;
@@ -322,6 +383,7 @@ input::placeholder {
 
 .cell {
   background: var(--cell-bg);
+  border-radius: calc(var(--border-radius) / 4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -754,6 +816,177 @@ footer {
 
 .btn {
   touch-action: manipulation;
+}
+
+/* ─── Theme Selector ──────────────────────────────────────────────── */
+#theme-selector {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.btn-theme {
+  background: transparent;
+  color: var(--green-dim);
+  border: 1px solid var(--green-dark);
+  border-radius: var(--border-radius);
+  padding: 3px 12px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+
+.btn-theme:hover {
+  border-color: var(--green-dim);
+  color: var(--green);
+}
+
+.btn-theme.active {
+  border-color: var(--green);
+  color: var(--green);
+  text-shadow: 0 0 6px var(--green-glow);
+}
+
+/* ─── Modern Theme Overrides ─────────────────────────────────────── */
+body.theme-modern .btn:hover:not(:disabled) {
+  box-shadow: 0 2px 12px rgba(74, 158, 255, 0.2);
+}
+
+body.theme-modern .cell.hit {
+  background: #cc3333 !important;
+}
+
+body.theme-modern .cell.hit::after {
+  text-shadow: 0 0 6px #ff4455;
+}
+
+body.theme-modern .cell.sunk {
+  background: #992244 !important;
+}
+
+body.theme-modern .cell.hit-own {
+  background: #cc3333 !important;
+}
+
+body.theme-modern .cell.sonar-clear {
+  background: rgba(74, 158, 255, 0.1) !important;
+}
+
+body.theme-modern .cell.sonar-low {
+  background: rgba(255, 200, 0, 0.1) !important;
+}
+
+body.theme-modern .cell.sonar-medium {
+  background: rgba(255, 153, 51, 0.2) !important;
+}
+
+body.theme-modern .cell.sonar-hot {
+  background: rgba(255, 68, 85, 0.2) !important;
+}
+
+body.theme-modern .cell.preview-sonar {
+  background: rgba(74, 158, 255, 0.2) !important;
+  box-shadow: inset 0 0 8px rgba(74, 158, 255, 0.3);
+}
+
+body.theme-modern .cell.preview-carpet {
+  background: rgba(255, 153, 51, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(255, 153, 51, 0.3);
+}
+
+body.theme-modern .cell.preview-repair {
+  background: rgba(74, 158, 255, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(74, 158, 255, 0.3);
+}
+
+body.theme-modern .cell.preview-repair-invalid {
+  background: rgba(255, 68, 85, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(255, 68, 85, 0.3);
+}
+
+body.theme-modern .turn-indicator.your-turn {
+  animation: pulse-modern 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-modern {
+  0%, 100% { box-shadow: 0 0 5px rgba(74, 158, 255, 0.2); }
+  50% { box-shadow: 0 0 15px rgba(74, 158, 255, 0.4); }
+}
+
+/* ─── Warships Theme Overrides ───────────────────────────────────── */
+body.theme-warships .btn {
+  letter-spacing: 3px;
+  font-variant: small-caps;
+}
+
+body.theme-warships .btn:hover:not(:disabled) {
+  box-shadow: 0 2px 12px rgba(212, 169, 68, 0.2);
+}
+
+body.theme-warships #title-art {
+  color: #d4a944;
+  text-shadow: 0 0 15px rgba(212, 169, 68, 0.4), 0 0 30px rgba(212, 169, 68, 0.15);
+}
+
+body.theme-warships .cell.hit {
+  background: #8b2222 !important;
+}
+
+body.theme-warships .cell.sunk {
+  background: #5c1515 !important;
+}
+
+body.theme-warships .cell.hit-own {
+  background: #8b2222 !important;
+}
+
+body.theme-warships .cell.sonar-clear {
+  background: rgba(119, 153, 170, 0.1) !important;
+}
+
+body.theme-warships .cell.sonar-low {
+  background: rgba(232, 184, 77, 0.1) !important;
+}
+
+body.theme-warships .cell.sonar-medium {
+  background: rgba(232, 184, 77, 0.2) !important;
+}
+
+body.theme-warships .cell.sonar-hot {
+  background: rgba(204, 51, 51, 0.2) !important;
+}
+
+body.theme-warships .cell.preview-sonar {
+  background: rgba(119, 153, 170, 0.2) !important;
+  box-shadow: inset 0 0 8px rgba(119, 153, 170, 0.3);
+}
+
+body.theme-warships .cell.preview-carpet {
+  background: rgba(232, 184, 77, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(232, 184, 77, 0.3);
+}
+
+body.theme-warships .cell.preview-repair {
+  background: rgba(212, 169, 68, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(212, 169, 68, 0.3);
+}
+
+body.theme-warships .cell.preview-repair-invalid {
+  background: rgba(204, 51, 51, 0.25) !important;
+  box-shadow: inset 0 0 8px rgba(204, 51, 51, 0.3);
+}
+
+body.theme-warships .turn-indicator.your-turn {
+  animation: pulse-warships 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warships {
+  0%, 100% { box-shadow: 0 0 5px rgba(212, 169, 68, 0.2); }
+  50% { box-shadow: 0 0 15px rgba(212, 169, 68, 0.4); }
 }
 
 /* Responsive */
