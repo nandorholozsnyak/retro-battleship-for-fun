@@ -111,12 +111,11 @@ body {
 #crt {
   width: 100%;
   max-width: 1400px;
-  height: 100vh;
+  min-height: 100vh;
   padding: 16px 24px;
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-y: auto;
 }
 
 #crt::before {
@@ -495,7 +494,6 @@ input::placeholder {
 
 .placement-grid-area {
   flex: 1;
-  max-width: 440px;
 }
 
 .placement-controls {
@@ -603,7 +601,7 @@ input::placeholder {
 }
 
 #screen-battle .panel {
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
 .battle-log {
@@ -613,6 +611,48 @@ input::placeholder {
 .battle-grid-area {
   flex: 1;
 }
+
+/* Grid size toggler */
+.grid-size-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.btn-grid-size {
+  background: transparent;
+  color: var(--green-dim);
+  border: 1px solid var(--green-dark);
+  border-radius: var(--border-radius);
+  padding: 2px 12px;
+  font-family: var(--font-main);
+  font-size: 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+
+.btn-grid-size:hover {
+  border-color: var(--green-dim);
+  color: var(--green);
+}
+
+.btn-grid-size.active {
+  border-color: var(--green);
+  color: var(--green);
+  text-shadow: 0 0 6px var(--green-glow);
+}
+
+/* Grid size classes */
+.grid-size-s .battle-grid-area,
+.grid-size-s .placement-grid-area { max-width: 280px; }
+
+.grid-size-m .battle-grid-area,
+.grid-size-m .placement-grid-area { max-width: 420px; }
+
+.grid-size-l .battle-grid-area,
+.grid-size-l .placement-grid-area { max-width: 580px; }
 
 #enemy-grid .cell {
   cursor: crosshair;
@@ -1080,12 +1120,15 @@ body.theme-warships .turn-indicator.your-turn {
 /* Responsive */
 @media (max-width: 800px) {
   #title-art { font-size: 7px; }
-  #crt { padding: 8px 12px; overflow-y: auto; }
+  #crt { padding: 8px 12px; }
   .panel { padding: 12px; }
 
   .placement-layout, .battle-layout { flex-direction: column; align-items: center; }
-  .placement-grid-area, .battle-grid-area { max-width: 320px; width: 100%; }
+  .placement-grid-area, .battle-grid-area,
+  [class*="grid-size-"] .placement-grid-area,
+  [class*="grid-size-"] .battle-grid-area { max-width: 320px; width: 100%; }
   .grid { max-width: 320px; }
+  .grid-size-toggle { margin-bottom: 6px; }
   .code-display { font-size: 32px; letter-spacing: 10px; }
 
   .placement-controls { width: 100%; align-items: stretch; }

@@ -2,7 +2,8 @@ const socket = io();
 
 // ─── Theme Switching ────────────────────────────────────────────────
 function setTheme(theme) {
-  document.body.className = theme === 'retro' ? '' : `theme-${theme}`;
+  document.body.classList.remove('theme-modern', 'theme-warships');
+  if (theme !== 'retro') document.body.classList.add(`theme-${theme}`);
   localStorage.setItem('battleship-theme', theme);
   document.querySelectorAll('.btn-theme').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);
@@ -15,6 +16,23 @@ setTheme(savedTheme);
 
 document.querySelectorAll('.btn-theme').forEach(btn => {
   btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+});
+
+// ─── Grid Size Toggler ──────────────────────────────────────────────
+function setGridSize(size) {
+  document.body.classList.remove('grid-size-s', 'grid-size-m', 'grid-size-l');
+  document.body.classList.add(`grid-size-${size}`);
+  localStorage.setItem('battleship-grid-size', size);
+  document.querySelectorAll('.btn-grid-size').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === size);
+  });
+}
+
+const savedGridSize = localStorage.getItem('battleship-grid-size') || 'm';
+setGridSize(savedGridSize);
+
+document.querySelectorAll('.btn-grid-size').forEach(btn => {
+  btn.addEventListener('click', () => setGridSize(btn.dataset.size));
 });
 
 // ─── Dynamic Config (set from server) ────────────────────────────────
