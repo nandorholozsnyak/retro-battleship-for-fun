@@ -282,12 +282,22 @@ function playRepair() {
   });
 }
 
+// ─── Player Name ────────────────────────────────────────────────────
+const savedName = localStorage.getItem('battleship-name') || '';
+$('#input-name').value = savedName;
+
+function getPlayerName() {
+  const name = $('#input-name').value.trim();
+  localStorage.setItem('battleship-name', name);
+  return name;
+}
+
 // ─── Lobby ───────────────────────────────────────────────────────────
 $('#btn-create').addEventListener('click', () => {
   const size = parseInt($('#select-board-size').value);
   const settings = readSettings();
   isSolo = false;
-  socket.emit('create_game', { boardSize: size, settings });
+  socket.emit('create_game', { boardSize: size, settings, playerName: getPlayerName() });
 });
 
 $('#btn-join').addEventListener('click', () => {
@@ -297,7 +307,7 @@ $('#btn-join').addEventListener('click', () => {
     return;
   }
   isSolo = false;
-  socket.emit('join_game', code);
+  socket.emit('join_game', { code, playerName: getPlayerName() });
 });
 
 $('#input-code').addEventListener('keydown', (e) => {
@@ -309,7 +319,58 @@ $('#btn-solo').addEventListener('click', () => {
   const difficulty = $('#select-difficulty').value;
   const settings = readSettings();
   isSolo = true;
-  socket.emit('create_solo_game', { boardSize: size, difficulty, settings });
+  socket.emit('create_solo_game', { boardSize: size, difficulty, settings, playerName: getPlayerName() });
+});
+
+// ─── Leaderboard ────────────────────────────────────────────────────
+let leaderboardTarget = 'lobby';
+
+$('#btn-leaderboard').addEventListener('click', () => {
+  const panel = $('#leaderboard-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = '';
+    leaderboardTarget = 'lobby';
+    socket.emit('get_leaderboard');
+  } else {
+    panel.style.display = 'none';
+  }
+});
+
+function renderLeaderboard(data, tbodyId, emptyId) {
+  const tbody = $(tbodyId);
+  const emptyMsg = $(emptyId);
+  tbody.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    emptyMsg.style.display = '';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  data.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td><td>${entry.name}</td><td>${entry.wins}</td><td>${entry.losses}</td><td>${entry.points}</td><td>${entry.games}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+socket.on('leaderboard_data', (data) => {
+  if (leaderboardTarget === 'gameover') {
+    renderLeaderboard(data, '#gameover-leaderboard-body', '#gameover-leaderboard-empty');
+  } else {
+    renderLeaderboard(data, '#leaderboard-body', '#leaderboard-empty');
+  }
+});
+
+$('#btn-gameover-leaderboard').addEventListener('click', () => {
+  const panel = $('#gameover-leaderboard-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = '';
+    leaderboardTarget = 'gameover';
+    socket.emit('get_leaderboard');
+  } else {
+    panel.style.display = 'none';
+  }
 });
 
 // ─── Placement ───────────────────────────────────────────────────────
@@ -1225,4 +1286,6 @@ $('#btn-newgame').addEventListener('click', () => {
   setBattleMode('normal');
   isSolo = false;
   gameSettings = { streakShots: true, allowTouching: false, maxSonars: 4, sonarCost: 4, carpetCost: 6, repairCost: 8 };
+  $('#gameover-leaderboard-panel').style.display = 'none';
+  $('#leaderboard-panel').style.display = 'none';
 });

@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const fs = require('fs');
 const { Server } = require('socket.io');
 const path = require('path');
 
@@ -10,6 +11,50 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const games = new Map();
+
+// ─── Leaderboard ──────────────────────────────────────────────────────
+const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+
+function loadLeaderboard() {
+  try {
+    if (fs.existsSync(LEADERBOARD_FILE)) {
+      return JSON.parse(fs.readFileSync(LEADERBOARD_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to load leaderboard:', e.message);
+  }
+  return {};
+}
+
+function saveLeaderboard(lb) {
+  try {
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
+  } catch (e) {
+    console.error('Failed to save leaderboard:', e.message);
+  }
+}
+
+function updateLeaderboard(name, won, points) {
+  if (!name || name.trim().length === 0) return;
+  name = name.trim().toUpperCase().slice(0, 16);
+  const lb = loadLeaderboard();
+  if (!lb[name]) {
+    lb[name] = { wins: 0, losses: 0, points: 0, games: 0 };
+  }
+  lb[name].games++;
+  lb[name].points += points;
+  if (won) lb[name].wins++;
+  else lb[name].losses++;
+  saveLeaderboard(lb);
+}
+
+function getLeaderboardRanked() {
+  const lb = loadLeaderboard();
+  return Object.entries(lb)
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((a, b) => b.wins - a.wins || b.points - a.points || a.games - b.games)
+    .slice(0, 50);
+}
 
 // ─── Fleet Configurations ────────────────────────────────────────────
 const FLEET_CONFIGS = {
@@ -486,6 +531,7 @@ function aiTakeTurn(game, code) {
 
   if (won) {
     game.phase = 'finished';
+    updateLeaderboard(game.playerNames[playerIdx], false, game.points[playerIdx]);
     io.to(game.players[playerIdx]).emit('game_over', {
       winner: false,
       opponentBoard: game.boards[aiIdx],
@@ -508,16 +554,18 @@ function aiTakeTurn(game, code) {
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
-  socket.on('create_game', ({ boardSize, settings } = {}) => {
+  socket.on('create_game', ({ boardSize, settings, playerName } = {}) => {
     const size = [10, 15, 20, 30].includes(boardSize) ? boardSize : 10;
     const fleet = FLEET_CONFIGS[size];
     const gameSettings = parseSettings(settings);
+    const name = (playerName || '').trim().toUpperCase().slice(0, 16);
 
     let code = generateCode();
     while (games.has(code)) code = generateCode();
 
     games.set(code, {
       players: [socket.id],
+      playerNames: [name, ''],
       boards: [null, null],
       shots: [createEmptyBoard(size), createEmptyBoard(size)],
       ready: [false, false],
@@ -547,17 +595,19 @@ io.on('connection', (socket) => {
     console.log(`Game ${code} created (${size}x${size}, streak:${gameSettings.streakShots}, touch:${gameSettings.allowTouching}) by ${socket.id}`);
   });
 
-  socket.on('create_solo_game', ({ boardSize, difficulty, settings } = {}) => {
+  socket.on('create_solo_game', ({ boardSize, difficulty, settings, playerName } = {}) => {
     const size = [10, 15, 20, 30].includes(boardSize) ? boardSize : 10;
     const fleet = FLEET_CONFIGS[size];
     const aiDiff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
     const gameSettings = parseSettings(settings);
+    const name = (playerName || '').trim().toUpperCase().slice(0, 16);
 
     let code = generateCode();
     while (games.has(code)) code = generateCode();
 
     games.set(code, {
       players: [socket.id, 'AI_BOT'],
+      playerNames: [name, 'AI'],
       boards: [null, null],
       shots: [createEmptyBoard(size), createEmptyBoard(size)],
       ready: [false, false],
@@ -590,8 +640,17 @@ io.on('connection', (socket) => {
     console.log(`Solo game ${code} created (${size}x${size}, streak:${gameSettings.streakShots}, touch:${gameSettings.allowTouching}, AI: ${aiDiff}) by ${socket.id}`);
   });
 
-  socket.on('join_game', (code) => {
-    code = code.toUpperCase().trim();
+  socket.on('join_game', (data) => {
+    // Support both string (legacy) and object format
+    let code, playerName;
+    if (typeof data === 'string') {
+      code = data.toUpperCase().trim();
+      playerName = '';
+    } else {
+      code = (data.code || '').toUpperCase().trim();
+      playerName = data.playerName || '';
+    }
+    const name = playerName.trim().toUpperCase().slice(0, 16);
     const game = games.get(code);
 
     if (!game) {
@@ -604,6 +663,7 @@ io.on('connection', (socket) => {
     }
 
     game.players.push(socket.id);
+    game.playerNames[1] = name;
     game.phase = 'placing';
     socket.join(code);
     socket.gameCode = code;
@@ -619,7 +679,7 @@ io.on('connection', (socket) => {
     });
     io.to(game.players[0]).emit('opponent_joined');
     io.to(code).emit('phase', 'placing');
-    console.log(`Player ${socket.id} joined game ${code}`);
+    console.log(`Player ${socket.id} (${name || 'ANON'}) joined game ${code}`);
   });
 
   socket.on('place_ships', (board) => {
@@ -734,6 +794,8 @@ io.on('connection', (socket) => {
 
     if (won) {
       game.phase = 'finished';
+      updateLeaderboard(game.playerNames[idx], true, game.points[idx]);
+      updateLeaderboard(game.playerNames[opponentIdx], false, game.points[opponentIdx]);
       io.to(game.players[idx]).emit('game_over', {
         winner: true,
         opponentBoard: game.boards[opponentIdx],
@@ -891,6 +953,8 @@ io.on('connection', (socket) => {
 
     if (won) {
       game.phase = 'finished';
+      updateLeaderboard(game.playerNames[idx], true, game.points[idx]);
+      updateLeaderboard(game.playerNames[opponentIdx], false, game.points[opponentIdx]);
       io.to(game.players[idx]).emit('game_over', {
         winner: true,
         opponentBoard: game.boards[opponentIdx],
@@ -1070,6 +1134,10 @@ io.on('connection', (socket) => {
         }
       }, 500 + Math.random() * 500);
     }
+  });
+
+  socket.on('get_leaderboard', () => {
+    socket.emit('leaderboard_data', getLeaderboardRanked());
   });
 
   socket.on('disconnect', () => {

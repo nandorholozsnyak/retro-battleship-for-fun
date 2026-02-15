@@ -1117,6 +1117,114 @@ body.theme-warships .turn-indicator.your-turn {
   50% { box-shadow: 0 0 15px rgba(212, 169, 68, 0.4); }
 }
 
+/* Call sign input */
+.callsign-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.input-callsign {
+  background: var(--cell-bg);
+  border: 1px solid var(--green-dim);
+  border-radius: var(--border-radius);
+  color: var(--green);
+  font-family: var(--font-main);
+  font-size: 26px;
+  padding: 10px 16px;
+  width: 300px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+}
+
+.input-callsign:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+}
+
+.input-callsign::placeholder {
+  color: var(--green-dark);
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+/* Leaderboard */
+.leaderboard-panel {
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid var(--green-dark);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  align-self: center;
+}
+
+.leaderboard-panel h3 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: normal;
+  margin-bottom: 12px;
+  text-align: center;
+  text-shadow: 0 0 6px var(--green-glow);
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-main);
+  font-size: 17px;
+}
+
+.leaderboard-table th {
+  color: var(--green-dim);
+  font-weight: normal;
+  text-align: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--green-dark);
+  letter-spacing: 1px;
+}
+
+.leaderboard-table td {
+  text-align: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--green-dark);
+  color: var(--green);
+}
+
+.leaderboard-table td:nth-child(1) {
+  color: var(--green-dim);
+  width: 30px;
+}
+
+.leaderboard-table td:nth-child(2) {
+  text-align: left;
+  color: var(--green);
+  text-shadow: 0 0 4px var(--green-glow);
+}
+
+.leaderboard-table tr:nth-child(1) td:nth-child(2) {
+  color: var(--amber);
+  text-shadow: 0 0 6px rgba(255, 170, 0, 0.4);
+}
+
+.leaderboard-table tr:nth-child(2) td:nth-child(2),
+.leaderboard-table tr:nth-child(3) td:nth-child(2) {
+  color: var(--cyan);
+  text-shadow: 0 0 4px rgba(0, 204, 204, 0.3);
+}
+
+.leaderboard-table tbody tr:hover {
+  background: var(--green-dark);
+}
+
+.leaderboard-empty {
+  text-align: center;
+  color: var(--green-dim);
+  padding: 16px;
+  font-size: 16px;
+}
+
 /* Responsive */
 @media (max-width: 800px) {
   #title-art { font-size: 7px; }
@@ -1167,8 +1275,12 @@ body.theme-warships .turn-indicator.your-turn {
 
   .board-size-row { flex-direction: column; gap: 8px; }
   .solo-section { flex-direction: column; gap: 8px; }
+  .callsign-row { flex-direction: column; gap: 8px; }
+  .input-callsign { width: 100%; }
   .setup-section { max-width: 100%; }
   .setup-row { flex-direction: column; gap: 4px; align-items: stretch; }
   .setup-row label { text-align: center; }
   .input-crt { width: 100%; }
+  .leaderboard-panel { max-width: 100%; }
+  .leaderboard-table { font-size: 15px; }
 }
