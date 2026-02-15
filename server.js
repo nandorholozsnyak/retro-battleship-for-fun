@@ -1093,6 +1093,15 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Prevent placing on cells the opponent has already fired upon
+    const oldCellSet = new Set(ship.cells.map(([r, c]) => r + ',' + c));
+    for (const [r, c] of newCells) {
+      if (game.shots[opponentIdx][r][c] === 1 && !oldCellSet.has(r + ',' + c)) {
+        socket.emit('error_msg', 'Cannot place on enemy-scouted waters!');
+        return;
+      }
+    }
+
     // Execute the repair and move
     game.points[idx] -= repairCost;
     game.repairedShips[idx].add(ship.name);

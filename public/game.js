@@ -866,10 +866,15 @@ function onOwnGridHover(r, c) {
   const cells = getShipCells(r, c, repairShipW, repairShipH, repairOrientation);
   const allInBounds = cells.every(([cr, cc]) => cr >= 0 && cr < boardSize && cc >= 0 && cc < boardSize);
 
-  // Simple client-side validation: in bounds and no overlap with other ships (except the ship being moved)
+  // Client-side validation: in bounds, no overlap, and not on enemy-scouted cells
   const repairOldSet = new Set(repairOldCells.map(([cr, cc]) => cr + ',' + cc));
   const valid = allInBounds && cells.every(([cr, cc]) => {
     if (myBoard[cr][cc] === 1 && !repairOldSet.has(cr + ',' + cc)) return false;
+    // Can't place on cells the opponent already fired at
+    if (!repairOldSet.has(cr + ',' + cc)) {
+      const cell = getCell($('#own-grid'), cr, cc);
+      if (cell.classList.contains('miss-own') || cell.classList.contains('hit-own')) return false;
+    }
     return true;
   });
 
