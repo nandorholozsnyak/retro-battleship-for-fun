@@ -39,12 +39,62 @@
               <option value="30">30 x 30 (Epic)</option>
             </select>
           </div>
+          <details class="setup-section">
+            <summary>&gt; GAME SETTINGS</summary>
+            <div class="setup-content">
+              <div class="setup-row">
+                <label>STREAK SHOTS:</label>
+                <select id="setting-streak-shots" class="select-crt">
+                  <option value="on" selected>ON (KEEP TURN ON HIT)</option>
+                  <option value="off">OFF (ONE SHOT PER TURN)</option>
+                </select>
+              </div>
+              <div class="setup-row">
+                <label>SHIPS CAN TOUCH:</label>
+                <select id="setting-allow-touching" class="select-crt">
+                  <option value="off" selected>NO (GAP REQUIRED)</option>
+                  <option value="on">YES (NO GAP NEEDED)</option>
+                </select>
+              </div>
+              <div class="setup-row">
+                <label>SONAR LIMIT:</label>
+                <select id="setting-sonar-limit" class="select-crt">
+                  <option value="2">2</option>
+                  <option value="4" selected>4 (DEFAULT)</option>
+                  <option value="6">6</option>
+                  <option value="99">UNLIMITED</option>
+                </select>
+              </div>
+              <div class="setup-row">
+                <label>SONAR COST:</label>
+                <input type="number" id="setting-sonar-cost" class="input-crt" value="4" min="1" max="20">
+              </div>
+              <div class="setup-row">
+                <label>CARPET BOMB COST:</label>
+                <input type="number" id="setting-carpet-cost" class="input-crt" value="6" min="1" max="20">
+              </div>
+              <div class="setup-row">
+                <label>REPAIR COST:</label>
+                <input type="number" id="setting-repair-cost" class="input-crt" value="8" min="1" max="20">
+              </div>
+            </div>
+          </details>
           <button id="btn-create" class="btn">&gt; CREATE NEW GAME</button>
           <div class="divider">- - - OR - - -</div>
           <div class="join-row">
             <label for="input-code">&gt; ENTER CODE:</label>
             <input type="text" id="input-code" maxlength="4" placeholder="____" autocomplete="off">
             <button id="btn-join" class="btn">&gt; JOIN</button>
+          </div>
+          <div class="divider">- - - OR - - -</div>
+          <div class="solo-section">
+            <label for="select-difficulty">&gt; SOLO MISSION:</label>
+            <select id="select-difficulty" class="select-crt">
+              <option value="easy">EASY</option>
+              <option value="medium" selected>MEDIUM</option>
+              <option value="hard">HARD</option>
+            </select>
+            <button id="btn-solo" class="btn">&gt; SOLO GAME</button>
           </div>
         </div>
         <div id="lobby-msg" class="msg"></div>

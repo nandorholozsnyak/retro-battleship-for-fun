@@ -266,6 +266,94 @@ h2 {
   gap: 12px;
 }
 
+.solo-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.setup-section {
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid var(--green-dark);
+  border-radius: var(--border-radius);
+  padding: 0;
+}
+
+.setup-section summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  color: var(--green-dim);
+  font-family: var(--font-main);
+  font-size: 18px;
+  letter-spacing: 2px;
+  list-style: none;
+  text-align: center;
+}
+
+.setup-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-section summary::before {
+  content: '[+] ';
+}
+
+.setup-section[open] summary::before {
+  content: '[-] ';
+}
+
+.setup-section summary:hover {
+  color: var(--green);
+  text-shadow: 0 0 6px var(--green-glow);
+}
+
+.setup-content {
+  padding: 12px;
+  border-top: 1px solid var(--green-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-row label {
+  font-size: 16px;
+  color: var(--green-dim);
+  white-space: nowrap;
+}
+
+.input-crt {
+  background: var(--cell-bg);
+  border: 1px solid var(--green-dim);
+  border-radius: var(--border-radius);
+  color: var(--green);
+  font-family: var(--font-main);
+  font-size: 18px;
+  padding: 6px 10px;
+  width: 80px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.input-crt::-webkit-outer-spin-button,
+.input-crt::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-crt:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+}
+
 input[type="text"] {
   background: var(--cell-bg);
   border: 1px solid var(--green-dim);
@@ -1035,4 +1123,9 @@ body.theme-warships .turn-indicator.your-turn {
   .btn-item { padding: 5px 8px; font-size: 14px; }
 
   .board-size-row { flex-direction: column; gap: 8px; }
+  .solo-section { flex-direction: column; gap: 8px; }
+  .setup-section { max-width: 100%; }
+  .setup-row { flex-direction: column; gap: 4px; align-items: stretch; }
+  .setup-row label { text-align: center; }
+  .input-crt { width: 100%; }
 }

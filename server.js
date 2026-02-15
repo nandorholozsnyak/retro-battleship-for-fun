@@ -150,7 +150,7 @@ function matchShipsToFleet(ships, fleet) {
   return { matched, remaining };
 }
 
-function validateShips(board, fleet, size) {
+function validateShips(board, fleet, size, settings) {
   const components = findShipComponents(board, size);
 
   // Each component must be a filled rectangle
@@ -162,12 +162,14 @@ function validateShips(board, fleet, size) {
   const { remaining } = matchShipsToFleet(components, fleet);
   if (remaining.length !== 0) return false;
 
-  // No two ships adjacent (including diagonals)
-  for (let i = 0; i < components.length; i++) {
-    for (let j = i + 1; j < components.length; j++) {
-      for (const [r1, c1] of components[i].cells) {
-        for (const [r2, c2] of components[j].cells) {
-          if (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1) return false;
+  // No two ships adjacent (including diagonals) - unless touching is allowed
+  if (!settings.allowTouching) {
+    for (let i = 0; i < components.length; i++) {
+      for (let j = i + 1; j < components.length; j++) {
+        for (const [r1, c1] of components[i].cells) {
+          for (const [r2, c2] of components[j].cells) {
+            if (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1) return false;
+          }
         }
       }
     }
@@ -219,23 +221,25 @@ function isShipDamaged(ship, shots) {
   return ship.cells.some(([r, c]) => shots[r][c] === 1);
 }
 
-function canPlaceShipOnBoard(board, newCells, excludeCells, size) {
+function canPlaceShipOnBoard(board, newCells, excludeCells, size, settings) {
   // Check all new cells are in bounds and not occupied (ignoring excludeCells)
   const excludeSet = new Set(excludeCells.map(([r, c]) => r + ',' + c));
   for (const [r, c] of newCells) {
     if (r < 0 || r >= size || c < 0 || c >= size) return false;
     if (board[r][c] === 1 && !excludeSet.has(r + ',' + c)) return false;
   }
-  // Check no adjacent cells belong to other ships (ignoring excludeCells and newCells themselves)
-  const newSet = new Set(newCells.map(([r, c]) => r + ',' + c));
-  for (const [r, c] of newCells) {
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = r + dr, nc = c + dc;
-        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
-        if (board[nr][nc] === 1 && !excludeSet.has(nr + ',' + nc) && !newSet.has(nr + ',' + nc)) {
-          return false;
+  // Check no adjacent cells belong to other ships - unless touching is allowed
+  if (!settings.allowTouching) {
+    const newSet = new Set(newCells.map(([r, c]) => r + ',' + c));
+    for (const [r, c] of newCells) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+          if (board[nr][nc] === 1 && !excludeSet.has(nr + ',' + nc) && !newSet.has(nr + ',' + nc)) {
+            return false;
+          }
         }
       }
     }
@@ -243,13 +247,271 @@ function canPlaceShipOnBoard(board, newCells, excludeCells, size) {
   return true;
 }
 
+function parseSettings(settings) {
+  return {
+    streakShots: settings?.streakShots !== false,
+    allowTouching: settings?.allowTouching === true,
+    maxSonars: Math.max(1, Math.min(99, parseInt(settings?.maxSonars) || 4)),
+    sonarCost: Math.max(1, Math.min(20, parseInt(settings?.sonarCost) || 4)),
+    carpetCost: Math.max(1, Math.min(20, parseInt(settings?.carpetCost) || 6)),
+    repairCost: Math.max(1, Math.min(20, parseInt(settings?.repairCost) || 8)),
+  };
+}
+
+// ─── AI Helpers ──────────────────────────────────────────────────────
+function generateAIShipPlacement(fleet, size, settings) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const board = createEmptyBoard(size);
+    let success = true;
+
+    for (const ship of fleet) {
+      let placed = false;
+      for (let t = 0; t < 200; t++) {
+        const orient = Math.random() < 0.5 ? 'H' : 'V';
+        const pw = orient === 'H' ? ship.w : ship.h;
+        const ph = orient === 'H' ? ship.h : ship.w;
+        const maxR = size - ph;
+        const maxC = size - pw;
+        if (maxR < 0 || maxC < 0) continue;
+
+        const r = Math.floor(Math.random() * (maxR + 1));
+        const c = Math.floor(Math.random() * (maxC + 1));
+
+        const cells = [];
+        for (let dr = 0; dr < ph; dr++) {
+          for (let dc = 0; dc < pw; dc++) {
+            cells.push([r + dr, c + dc]);
+          }
+        }
+
+        let canPlace = cells.every(([cr, cc]) => board[cr][cc] === 0);
+
+        if (canPlace && !settings.allowTouching) {
+          for (const [cr, cc] of cells) {
+            if (!canPlace) break;
+            for (let dr = -1; dr <= 1; dr++) {
+              if (!canPlace) break;
+              for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nr = cr + dr, nc = cc + dc;
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                  const isOwnCell = cells.some(([r2, c2]) => r2 === nr && c2 === nc);
+                  if (board[nr][nc] === 1 && !isOwnCell) {
+                    canPlace = false;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (canPlace) {
+          for (const [cr, cc] of cells) {
+            board[cr][cc] = 1;
+          }
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        success = false;
+        break;
+      }
+    }
+
+    if (success) return board;
+  }
+  return null;
+}
+
+function findAITargets(game, size) {
+  const aiIdx = 1;
+  const playerIdx = 0;
+  const targets = [];
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (game.shots[aiIdx][r][c] === 1 && game.boards[playerIdx][r][c] === 1) {
+        const ship = findShipAt(game.shipPositions[playerIdx], r, c);
+        if (ship && !isShipSunk(ship, game.shots[aiIdx])) {
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size && game.shots[aiIdx][nr][nc] === 0) {
+              if (!targets.some(([tr, tc]) => tr === nr && tc === nc)) {
+                targets.push([nr, nc]);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return targets;
+}
+
+function pickSmartTarget(game, targets, size) {
+  const aiIdx = 1;
+  const playerIdx = 0;
+
+  // Find hits on unsunk ships and determine orientation
+  const hitsByShip = new Map();
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (game.shots[aiIdx][r][c] === 1 && game.boards[playerIdx][r][c] === 1) {
+        const ship = findShipAt(game.shipPositions[playerIdx], r, c);
+        if (ship && !isShipSunk(ship, game.shots[aiIdx])) {
+          if (!hitsByShip.has(ship.name)) hitsByShip.set(ship.name, []);
+          hitsByShip.get(ship.name).push([r, c]);
+        }
+      }
+    }
+  }
+
+  let bestTargets = [];
+  let bestScore = -1;
+
+  for (const target of targets) {
+    let score = 1;
+    const [tr, tc] = target;
+
+    for (const [, hits] of hitsByShip) {
+      if (hits.length >= 2) {
+        const allSameRow = hits.every(([r]) => r === hits[0][0]);
+        const allSameCol = hits.every(([, c]) => c === hits[0][1]);
+
+        if (allSameRow && tr === hits[0][0]) {
+          score += 10;
+        } else if (allSameCol && tc === hits[0][1]) {
+          score += 10;
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestTargets = [target];
+    } else if (score === bestScore) {
+      bestTargets.push(target);
+    }
+  }
+
+  return bestTargets[Math.floor(Math.random() * bestTargets.length)];
+}
+
+function pickDensityTarget(game, unfired, size) {
+  const scored = unfired.map(([r, c]) => {
+    let score = 1;
+    // Checkerboard bonus (ships of length >= 2 must cross checkerboard)
+    if ((r + c) % 2 === 0) score += 2;
+    // Center bias
+    const centerDist = Math.abs(r - size / 2) + Math.abs(c - size / 2);
+    score += (size - centerDist) / size;
+    return { cell: [r, c], score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(5, scored.length);
+  const idx = Math.floor(Math.random() * topN);
+  return scored[idx].cell;
+}
+
+function aiTakeTurn(game, code) {
+  if (!games.has(code) || game.phase !== 'battle' || game.turn !== 1) return;
+
+  const aiIdx = 1;
+  const playerIdx = 0;
+  const size = game.boardSize;
+
+  const unfired = [];
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (game.shots[aiIdx][r][c] === 0) {
+        unfired.push([r, c]);
+      }
+    }
+  }
+  if (unfired.length === 0) return;
+
+  let target;
+
+  if (game.aiDifficulty === 'easy') {
+    target = unfired[Math.floor(Math.random() * unfired.length)];
+  } else {
+    const targets = findAITargets(game, size);
+    if (targets.length > 0) {
+      if (game.aiDifficulty === 'hard') {
+        target = pickSmartTarget(game, targets, size);
+      } else {
+        target = targets[Math.floor(Math.random() * targets.length)];
+      }
+    } else {
+      if (game.aiDifficulty === 'hard') {
+        target = pickDensityTarget(game, unfired, size);
+      } else {
+        target = unfired[Math.floor(Math.random() * unfired.length)];
+      }
+    }
+  }
+
+  const [row, col] = target;
+  game.shots[aiIdx][row][col] = 1;
+  const hit = game.boards[playerIdx][row][col] === 1;
+  const sunkShips = getSunkShips(game.boards[playerIdx], game.shots[aiIdx], game.fleet, size);
+  const hits = countHits(game.boards[playerIdx], game.shots[aiIdx], size);
+  const total = totalShipCells(game.boards[playerIdx], size);
+  const won = hits === total;
+
+  if (hit) {
+    game.streaks[aiIdx]++;
+    let pointsEarned = game.streaks[aiIdx];
+    const ship = findShipAt(game.shipPositions[playerIdx], row, col);
+    if (ship && isShipSunk(ship, game.shots[aiIdx])) {
+      pointsEarned += ship.w * ship.h;
+    }
+    game.points[aiIdx] += pointsEarned;
+  } else {
+    game.streaks[aiIdx] = 0;
+  }
+
+  const keepTurn = game.settings.streakShots ? (hit && !won) : false;
+
+  io.to(game.players[playerIdx]).emit('incoming_fire', {
+    row, col, hit, sunkShips,
+    yourTurn: won ? false : !keepTurn,
+    lost: won ? true : undefined,
+    enemyPoints: game.points[aiIdx],
+  });
+
+  if (won) {
+    game.phase = 'finished';
+    io.to(game.players[playerIdx]).emit('game_over', {
+      winner: false,
+      opponentBoard: game.boards[aiIdx],
+      myPoints: game.points[playerIdx],
+      enemyPoints: game.points[aiIdx],
+    });
+  } else if (keepTurn) {
+    setTimeout(() => {
+      if (games.has(code) && game.phase === 'battle') {
+        aiTakeTurn(game, code);
+      }
+    }, 500 + Math.random() * 500);
+  } else {
+    game.turn = playerIdx;
+    game.sonarUsedThisRound[aiIdx] = false;
+  }
+}
+
 // ─── Socket Handlers ─────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
-  socket.on('create_game', ({ boardSize } = {}) => {
+  socket.on('create_game', ({ boardSize, settings } = {}) => {
     const size = [10, 15, 20, 30].includes(boardSize) ? boardSize : 10;
     const fleet = FLEET_CONFIGS[size];
+    const gameSettings = parseSettings(settings);
 
     let code = generateCode();
     while (games.has(code)) code = generateCode();
@@ -267,6 +529,9 @@ io.on('connection', (socket) => {
       points: [0, 0],
       streaks: [0, 0],
       repairedShips: [new Set(), new Set()],
+      settings: gameSettings,
+      sonarUsedThisRound: [false, false],
+      sonarUsedTotal: [0, 0],
     });
 
     socket.join(code);
@@ -277,8 +542,52 @@ io.on('connection', (socket) => {
       boardSize: size,
       fleet,
       colLabels: generateColLabels(size),
+      settings: gameSettings,
     });
-    console.log(`Game ${code} created (${size}x${size}) by ${socket.id}`);
+    console.log(`Game ${code} created (${size}x${size}, streak:${gameSettings.streakShots}, touch:${gameSettings.allowTouching}) by ${socket.id}`);
+  });
+
+  socket.on('create_solo_game', ({ boardSize, difficulty, settings } = {}) => {
+    const size = [10, 15, 20, 30].includes(boardSize) ? boardSize : 10;
+    const fleet = FLEET_CONFIGS[size];
+    const aiDiff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
+    const gameSettings = parseSettings(settings);
+
+    let code = generateCode();
+    while (games.has(code)) code = generateCode();
+
+    games.set(code, {
+      players: [socket.id, 'AI_BOT'],
+      boards: [null, null],
+      shots: [createEmptyBoard(size), createEmptyBoard(size)],
+      ready: [false, false],
+      turn: 0,
+      phase: 'placing',
+      boardSize: size,
+      fleet,
+      shipPositions: [null, null],
+      points: [0, 0],
+      streaks: [0, 0],
+      repairedShips: [new Set(), new Set()],
+      settings: gameSettings,
+      sonarUsedThisRound: [false, false],
+      sonarUsedTotal: [0, 0],
+      isSolo: true,
+      aiDifficulty: aiDiff,
+    });
+
+    socket.join(code);
+    socket.gameCode = code;
+    socket.playerIndex = 0;
+
+    socket.emit('solo_game_created', {
+      code,
+      boardSize: size,
+      fleet,
+      colLabels: generateColLabels(size),
+      settings: gameSettings,
+    });
+    console.log(`Solo game ${code} created (${size}x${size}, streak:${gameSettings.streakShots}, touch:${gameSettings.allowTouching}, AI: ${aiDiff}) by ${socket.id}`);
   });
 
   socket.on('join_game', (code) => {
@@ -306,6 +615,7 @@ io.on('connection', (socket) => {
       boardSize: game.boardSize,
       fleet: game.fleet,
       colLabels: generateColLabels(game.boardSize),
+      settings: game.settings,
     });
     io.to(game.players[0]).emit('opponent_joined');
     io.to(code).emit('phase', 'placing');
@@ -318,7 +628,7 @@ io.on('connection', (socket) => {
     if (!game || game.phase !== 'placing') return;
 
     const idx = socket.playerIndex;
-    if (!validateShips(board, game.fleet, game.boardSize)) {
+    if (!validateShips(board, game.fleet, game.boardSize, game.settings)) {
       socket.emit('error_msg', `Invalid ship placement. Place all ${game.fleet.length} ships correctly.`);
       return;
     }
@@ -328,11 +638,35 @@ io.on('connection', (socket) => {
     game.shipPositions[idx] = extractShipPositions(board, game.fleet, game.boardSize);
     socket.emit('ships_accepted');
 
+    // In solo mode, auto-place AI ships when player is ready
+    if (game.isSolo && idx === 0) {
+      let aiBoard = null;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const candidate = generateAIShipPlacement(game.fleet, game.boardSize, game.settings);
+        if (candidate && validateShips(candidate, game.fleet, game.boardSize, game.settings)) {
+          aiBoard = candidate;
+          break;
+        }
+      }
+      if (!aiBoard) {
+        socket.emit('error_msg', 'Failed to generate AI placement. Try again.');
+        game.boards[idx] = null;
+        game.ready[idx] = false;
+        game.shipPositions[idx] = null;
+        return;
+      }
+      game.boards[1] = aiBoard;
+      game.ready[1] = true;
+      game.shipPositions[1] = extractShipPositions(aiBoard, game.fleet, game.boardSize);
+    }
+
     if (game.ready[0] && game.ready[1]) {
       game.phase = 'battle';
       game.turn = 0;
       io.to(game.players[0]).emit('battle_start', { yourTurn: true });
-      io.to(game.players[1]).emit('battle_start', { yourTurn: false });
+      if (!game.isSolo) {
+        io.to(game.players[1]).emit('battle_start', { yourTurn: false });
+      }
     } else {
       socket.emit('waiting_for_opponent');
     }
@@ -379,7 +713,8 @@ io.on('connection', (socket) => {
     }
     game.points[idx] += pointsEarned;
 
-    const keepTurn = hit && !won;
+    // Streak shots: keep turn on hit if enabled
+    const keepTurn = game.settings.streakShots ? (hit && !won) : false;
 
     socket.emit('fire_result', {
       row, col, hit, sunkShips,
@@ -413,6 +748,16 @@ io.on('connection', (socket) => {
       });
     } else if (!keepTurn) {
       game.turn = opponentIdx;
+      game.sonarUsedThisRound[idx] = false;
+
+      // Trigger AI turn if solo mode
+      if (game.isSolo && opponentIdx === 1) {
+        setTimeout(() => {
+          if (games.has(code) && game.phase === 'battle') {
+            aiTakeTurn(game, code);
+          }
+        }, 500 + Math.random() * 500);
+      }
     }
   });
 
@@ -424,14 +769,28 @@ io.on('connection', (socket) => {
 
     const idx = socket.playerIndex;
     if (game.turn !== idx) return;
-    if (game.points[idx] < ITEMS.sonar.cost) {
+
+    const sonarCost = game.settings.sonarCost;
+    const maxSonars = game.settings.maxSonars;
+
+    if (game.sonarUsedThisRound[idx]) {
+      socket.emit('error_msg', 'Sonar already used this round!');
+      return;
+    }
+    if (game.sonarUsedTotal[idx] >= maxSonars) {
+      socket.emit('error_msg', 'No sonars remaining!');
+      return;
+    }
+    if (game.points[idx] < sonarCost) {
       socket.emit('error_msg', 'Not enough points for Sonar Pulse!');
       return;
     }
 
     const size = game.boardSize;
     const opponentIdx = 1 - idx;
-    game.points[idx] -= ITEMS.sonar.cost;
+    game.points[idx] -= sonarCost;
+    game.sonarUsedThisRound[idx] = true;
+    game.sonarUsedTotal[idx]++;
 
     // Scan area scales with board size: 3x3, 4x4, 5x5, 6x6
     const sonarSize = SONAR_SIZES[size] || 3;
@@ -462,6 +821,7 @@ io.on('connection', (socket) => {
       shipCount,
       unfiredCount,
       points: game.points[idx],
+      sonarsRemaining: maxSonars - game.sonarUsedTotal[idx],
     });
   });
 
@@ -473,14 +833,16 @@ io.on('connection', (socket) => {
 
     const idx = socket.playerIndex;
     if (game.turn !== idx) return;
-    if (game.points[idx] < ITEMS.carpet_bomb.cost) {
+
+    const carpetCost = game.settings.carpetCost;
+    if (game.points[idx] < carpetCost) {
       socket.emit('error_msg', 'Not enough points for Carpet Bombing!');
       return;
     }
 
     const size = game.boardSize;
     const opponentIdx = 1 - idx;
-    game.points[idx] -= ITEMS.carpet_bomb.cost;
+    game.points[idx] -= carpetCost;
     game.streaks[idx] = 0; // carpet bomb resets streak
 
     // Calculate 3 cells in a line
@@ -544,8 +906,17 @@ io.on('connection', (socket) => {
     } else {
       // Carpet bomb always ends turn
       game.turn = opponentIdx;
+      game.sonarUsedThisRound[idx] = false;
       socket.emit('turn_update', { yourTurn: false });
       io.to(game.players[opponentIdx]).emit('turn_update', { yourTurn: true });
+
+      if (game.isSolo && opponentIdx === 1) {
+        setTimeout(() => {
+          if (games.has(code) && game.phase === 'battle') {
+            aiTakeTurn(game, code);
+          }
+        }, 500 + Math.random() * 500);
+      }
     }
   });
 
@@ -558,7 +929,9 @@ io.on('connection', (socket) => {
 
     const idx = socket.playerIndex;
     if (game.turn !== idx) return;
-    if (game.points[idx] < ITEMS.repair.cost) {
+
+    const repairCost = game.settings.repairCost;
+    if (game.points[idx] < repairCost) {
       socket.emit('error_msg', 'Not enough points for Repair!');
       return;
     }
@@ -600,7 +973,9 @@ io.on('connection', (socket) => {
 
     const idx = socket.playerIndex;
     if (game.turn !== idx) return;
-    if (game.points[idx] < ITEMS.repair.cost) {
+
+    const repairCost = game.settings.repairCost;
+    if (game.points[idx] < repairCost) {
       socket.emit('error_msg', 'Not enough points for Repair!');
       return;
     }
@@ -637,13 +1012,13 @@ io.on('connection', (socket) => {
     }
 
     // Validate the new position on the board
-    if (!canPlaceShipOnBoard(game.boards[idx], newCells, ship.cells, size)) {
+    if (!canPlaceShipOnBoard(game.boards[idx], newCells, ship.cells, size, game.settings)) {
       socket.emit('error_msg', 'Cannot place ship there!');
       return;
     }
 
     // Execute the repair and move
-    game.points[idx] -= ITEMS.repair.cost;
+    game.points[idx] -= repairCost;
     game.repairedShips[idx].add(ship.name);
 
     const oldCells = ship.cells.slice();
@@ -672,6 +1047,7 @@ io.on('connection', (socket) => {
 
     // Repair & Move ends the turn
     game.turn = opponentIdx;
+    game.sonarUsedThisRound[idx] = false;
 
     socket.emit('repair_result', {
       shipName: ship.name,
@@ -686,6 +1062,14 @@ io.on('connection', (socket) => {
       clearedHits,
       enemyPoints: game.points[idx],
     });
+
+    if (game.isSolo && opponentIdx === 1) {
+      setTimeout(() => {
+        if (games.has(code) && game.phase === 'battle') {
+          aiTakeTurn(game, code);
+        }
+      }, 500 + Math.random() * 500);
+    }
   });
 
   socket.on('disconnect', () => {

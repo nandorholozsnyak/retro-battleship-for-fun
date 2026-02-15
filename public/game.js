@@ -28,6 +28,14 @@ let SHIPS = [
   { name: 'Destroyer', w: 2, h: 1 },
 ];
 
+// Settings
+let gameSettings = { streakShots: true, allowTouching: false, maxSonars: 4, sonarCost: 4, carpetCost: 6, repairCost: 8 };
+let isSolo = false;
+
+// Sonar limit tracking
+let sonarUsedThisRound = false;
+let sonarsRemaining = 4;
+
 function setGameConfig(config) {
   boardSize = config.boardSize || 10;
   COLS = config.colLabels || ['A','B','C','D','E','F','G','H','I','J'];
@@ -38,6 +46,21 @@ function setGameConfig(config) {
     { name: 'Submarine', w: 3, h: 1 },
     { name: 'Destroyer', w: 2, h: 1 },
   ];
+  if (config.settings) {
+    gameSettings = config.settings;
+    sonarsRemaining = gameSettings.maxSonars;
+  }
+}
+
+function readSettings() {
+  return {
+    streakShots: $('#setting-streak-shots')?.value !== 'off',
+    allowTouching: $('#setting-allow-touching')?.value === 'on',
+    maxSonars: parseInt($('#setting-sonar-limit')?.value) || 4,
+    sonarCost: parseInt($('#setting-sonar-cost')?.value) || 4,
+    carpetCost: parseInt($('#setting-carpet-cost')?.value) || 6,
+    repairCost: parseInt($('#setting-repair-cost')?.value) || 8,
+  };
 }
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -244,7 +267,9 @@ function playRepair() {
 // ─── Lobby ───────────────────────────────────────────────────────────
 $('#btn-create').addEventListener('click', () => {
   const size = parseInt($('#select-board-size').value);
-  socket.emit('create_game', { boardSize: size });
+  const settings = readSettings();
+  isSolo = false;
+  socket.emit('create_game', { boardSize: size, settings });
 });
 
 $('#btn-join').addEventListener('click', () => {
@@ -253,11 +278,20 @@ $('#btn-join').addEventListener('click', () => {
     $('#lobby-msg').textContent = 'ENTER A 4-CHARACTER CODE';
     return;
   }
+  isSolo = false;
   socket.emit('join_game', code);
 });
 
 $('#input-code').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('#btn-join').click();
+});
+
+$('#btn-solo').addEventListener('click', () => {
+  const size = parseInt($('#select-board-size').value);
+  const difficulty = $('#select-difficulty').value;
+  const settings = readSettings();
+  isSolo = true;
+  socket.emit('create_solo_game', { boardSize: size, difficulty, settings });
 });
 
 // ─── Placement ───────────────────────────────────────────────────────
@@ -341,6 +375,9 @@ function canPlace(cells, excludeShip) {
     return true;
   });
   if (!valid) return false;
+
+  // Skip adjacency check if touching is allowed
+  if (gameSettings.allowTouching) return true;
 
   for (const [r, c] of cells) {
     for (let dr = -1; dr <= 1; dr++) {
@@ -507,9 +544,19 @@ function updatePointsDisplay() {
 
 function updateItemButtons() {
   const canUse = isMyTurn;
-  $('#btn-sonar').disabled = !canUse || myPoints < 4;
-  $('#btn-carpet').disabled = !canUse || myPoints < 6;
-  $('#btn-repair').disabled = !canUse || myPoints < 8;
+  const sonarCost = gameSettings.sonarCost;
+  const carpetCost = gameSettings.carpetCost;
+  const repairCost = gameSettings.repairCost;
+
+  const sonarDisabled = !canUse || myPoints < sonarCost || sonarUsedThisRound || sonarsRemaining <= 0;
+  $('#btn-sonar').disabled = sonarDisabled;
+  $('#btn-carpet').disabled = !canUse || myPoints < carpetCost;
+  $('#btn-repair').disabled = !canUse || myPoints < repairCost;
+
+  // Update button labels with costs and sonar remaining
+  $('#btn-sonar').textContent = `> SONAR (${sonarCost}) [${sonarsRemaining} LEFT]`;
+  $('#btn-carpet').textContent = `> CARPET BOMB (${carpetCost})`;
+  $('#btn-repair').textContent = `> REPAIR & MOVE (${repairCost})`;
 }
 
 function setBattleMode(mode) {
@@ -599,6 +646,8 @@ function initBattle() {
   opponentPoints = 0;
   battleMode = 'normal';
   carpetOrientation = 'H';
+  sonarUsedThisRound = false;
+  sonarsRemaining = gameSettings.maxSonars;
 
   // Enemy grid
   const enemyCols = screens.battle.querySelector('.col-labels-enemy');
@@ -765,7 +814,7 @@ function updateTurnIndicator() {
     el.textContent = '>>> YOUR TURN - FIRE AT WILL <<<';
     el.className = 'turn-indicator your-turn';
   } else {
-    el.textContent = '... ENEMY IS TARGETING ...';
+    el.textContent = isSolo ? '... AI IS TARGETING ...' : '... ENEMY IS TARGETING ...';
     el.className = 'turn-indicator enemy-turn';
   }
   updateItemButtons();
@@ -801,16 +850,24 @@ socket.on('disconnect', () => {
   $('#connection-status').classList.remove('connected');
 });
 
-socket.on('game_created', ({ code, boardSize: bs, fleet, colLabels }) => {
-  setGameConfig({ boardSize: bs, fleet, colLabels });
+socket.on('game_created', ({ code, boardSize: bs, fleet, colLabels, settings }) => {
+  setGameConfig({ boardSize: bs, fleet, colLabels, settings });
   $('#game-code-display').textContent = code;
   showScreen('waiting');
   setStatus('AWAITING OPPONENT');
 });
 
-socket.on('game_joined', ({ code, boardSize: bs, fleet, colLabels }) => {
-  setGameConfig({ boardSize: bs, fleet, colLabels });
+socket.on('game_joined', ({ code, boardSize: bs, fleet, colLabels, settings }) => {
+  setGameConfig({ boardSize: bs, fleet, colLabels, settings });
   setStatus('DEPLOYING FLEET');
+  showScreen('placing');
+  initPlacement();
+});
+
+socket.on('solo_game_created', ({ code, boardSize: bs, fleet, colLabels, settings }) => {
+  setGameConfig({ boardSize: bs, fleet, colLabels, settings });
+  isSolo = true;
+  setStatus('DEPLOYING FLEET - SOLO MISSION');
   showScreen('placing');
   initPlacement();
 });
@@ -837,15 +894,20 @@ socket.on('error_msg', (msg) => {
 });
 
 socket.on('ships_accepted', () => {
-  $('#placing-msg').textContent = 'FLEET DEPLOYED. WAITING FOR ENEMY...';
+  if (isSolo) {
+    $('#placing-msg').textContent = 'FLEET DEPLOYED. PREPARING BATTLE...';
+  } else {
+    $('#placing-msg').textContent = 'FLEET DEPLOYED. WAITING FOR ENEMY...';
+  }
 });
 
 socket.on('waiting_for_opponent', () => {});
 
 socket.on('battle_start', ({ yourTurn }) => {
   isMyTurn = yourTurn;
+  sonarUsedThisRound = false;
   showScreen('battle');
-  setStatus('BATTLE STATIONS');
+  setStatus(isSolo ? 'SOLO MISSION - BATTLE STATIONS' : 'BATTLE STATIONS');
   initBattle();
   updateTurnIndicator();
   addLog('ALL STATIONS REPORT READY. BATTLE COMMENCED.', '');
@@ -907,14 +969,20 @@ socket.on('incoming_fire', ({ row, col, hit, sunkShips, yourTurn, lost, enemyPoi
 
   opponentPoints = ep;
   isMyTurn = yourTurn;
+  // Reset sonar for new round when turn comes back to us
+  if (yourTurn) {
+    sonarUsedThisRound = false;
+  }
   updatePointsDisplay();
   updateTurnIndicator();
 });
 
 // ─── Sonar result ────────────────────────────────────────────────────
-socket.on('sonar_result', ({ cells, probability, shipCount, unfiredCount, points }) => {
+socket.on('sonar_result', ({ cells, probability, shipCount, unfiredCount, points, sonarsRemaining: remaining }) => {
   playSonar();
   myPoints = points;
+  sonarUsedThisRound = true;
+  sonarsRemaining = remaining;
   updatePointsDisplay();
 
   // Determine heat level class based on threat density
@@ -931,7 +999,7 @@ socket.on('sonar_result', ({ cells, probability, shipCount, unfiredCount, points
     cell.classList.add(heatClass);
   });
 
-  addLog(`SONAR PING: ${probability}% THREAT DENSITY (${shipCount} in ${unfiredCount} cells, -4 pts)`, 'log-sonar');
+  addLog(`SONAR PING: ${probability}% THREAT DENSITY (${shipCount} in ${unfiredCount} cells, -${gameSettings.sonarCost} pts)`, 'log-sonar');
 });
 
 // ─── Carpet bomb result ──────────────────────────────────────────────
@@ -960,7 +1028,7 @@ socket.on('carpet_bomb_result', ({ results, sunkShips, points, streak, won }) =>
 
   myPoints = points;
   myStreak = streak;
-  addLog(`CARPET BOMB: ${hitCount}/${results.length} HITS (-6 pts)`, 'log-carpet');
+  addLog(`CARPET BOMB: ${hitCount}/${results.length} HITS (-${gameSettings.carpetCost} pts)`, 'log-carpet');
 
   if (!won) {
     isMyTurn = false;
@@ -991,6 +1059,7 @@ socket.on('incoming_carpet_bomb', ({ results, sunkShips, enemyPoints: ep, lost }
   opponentPoints = ep;
   if (!lost) {
     isMyTurn = true;
+    sonarUsedThisRound = false;
     updateTurnIndicator();
   }
   updatePointsDisplay();
@@ -1038,7 +1107,7 @@ socket.on('repair_result', ({ shipName, oldCells, newCells, clearedHits, points 
     setTimeout(() => cell.classList.remove('repair-flash'), 600);
   });
 
-  addLog(`${shipName.toUpperCase()} REPAIRED & MOVED! (${clearedHits.length} hits cleared, -8 pts, TURN OVER)`, 'log-repair');
+  addLog(`${shipName.toUpperCase()} REPAIRED & MOVED! (${clearedHits.length} hits cleared, -${gameSettings.repairCost} pts, TURN OVER)`, 'log-repair');
 
   // Repair & Move ends the turn
   isMyTurn = false;
@@ -1065,12 +1134,16 @@ socket.on('opponent_repair', ({ oldCells, clearedHits, enemyPoints: ep }) => {
 
   // Repair & Move gives us the turn
   isMyTurn = true;
+  sonarUsedThisRound = false;
   updateTurnIndicator();
 });
 
 // ─── Turn update (from carpet bomb) ─────────────────────────────────
 socket.on('turn_update', ({ yourTurn }) => {
   isMyTurn = yourTurn;
+  if (yourTurn) {
+    sonarUsedThisRound = false;
+  }
   updateTurnIndicator();
 });
 
@@ -1092,7 +1165,7 @@ socket.on('game_over', ({ winner, opponentBoard, myPoints: mp, enemyPoints: ep }
    |   /_/ / / /___   / /  / /_/ // _, _/  / /
    |__//___/ \\____/  /_/   \\____//_/ |_|  /_/
       `;
-      $('#gameover-msg').textContent = 'ALL ENEMY VESSELS DESTROYED. MISSION COMPLETE.';
+      $('#gameover-msg').textContent = isSolo ? 'ALL ENEMY VESSELS DESTROYED. SOLO MISSION COMPLETE.' : 'ALL ENEMY VESSELS DESTROYED. MISSION COMPLETE.';
       $('#gameover-msg').className = 'victory-text';
     } else {
       $('#gameover-title').textContent = '> DEFEAT';
@@ -1104,7 +1177,7 @@ socket.on('game_over', ({ winner, opponentBoard, myPoints: mp, enemyPoints: ep }
  / /_/ // /  / __/  / /  / / | |/ /
 /_____//_/  /_/    /_/  /_/  |_/_/
       `;
-      $('#gameover-msg').textContent = 'OUR FLEET HAS BEEN ANNIHILATED. WE HAVE FAILED.';
+      $('#gameover-msg').textContent = isSolo ? 'OUR FLEET HAS BEEN ANNIHILATED. MISSION FAILED.' : 'OUR FLEET HAS BEEN ANNIHILATED. WE HAVE FAILED.';
       $('#gameover-msg').className = 'defeat-text';
     }
 
@@ -1132,4 +1205,6 @@ $('#btn-newgame').addEventListener('click', () => {
   $('#lobby-msg').textContent = '';
   $('#input-code').value = '';
   setBattleMode('normal');
+  isSolo = false;
+  gameSettings = { streakShots: true, allowTouching: false, maxSonars: 4, sonarCost: 4, carpetCost: 6, repairCost: 8 };
 });
