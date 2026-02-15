@@ -8,6 +8,18 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Serve index.html with absolute OG URLs injected from request host
+const indexPath = path.join(__dirname, 'public', 'index.html');
+const indexTemplate = fs.readFileSync(indexPath, 'utf8');
+
+app.get('/', (req, res) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const baseUrl = `${proto}://${host}`;
+  const html = indexTemplate.replace(/content="\/og-image\.png"/g, `content="${baseUrl}/og-image.png"`);
+  res.type('html').send(html);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const games = new Map();
